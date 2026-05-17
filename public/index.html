@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ข้อสอบครูผู้ช่วย ภาค ก. | ธรรมศาสตร์</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Prompt:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <span class="crown">🎓</span>
+      <h1>ระบบทดสอบข้อสอบ<br>ครูผู้ช่วย ภาค ก.</h1>
+      <p>ตามหลักสูตร ว.14/2566 · ออกข้อสอบโดยมหาวิทยาลัยธรรมศาสตร์</p>
+      <span class="login-tag">📋 ความรอบรู้ · ความสามารถทั่วไป · วิชาชีพครู</span>
+    </div>
+    <div class="form-group">
+      <label>ชื่อผู้ใช้งาน (Username)</label>
+      <input type="text" id="inputUser" placeholder="กรอก Username" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>รหัสผ่าน (Password)</label>
+      <input type="password" id="inputPass" placeholder="กรอก Password" autocomplete="current-password">
+    </div>
+    <button class="btn-login" onclick="doLogin()">เข้าสู่ระบบ</button>
+    <p class="error-msg" id="errMsg">❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</p>
+  </div>
+</div>
+
+<div id="appScreen">
+  <div class="header">
+    <span class="header-title">🎓 ครูผู้ช่วย ภาค ก. · ธรรมศาสตร์</span>
+    <div class="header-right">
+      <span class="user-badge" id="userBadge">👤 —</span>
+      <button class="btn-logout" onclick="doLogout()">ออกจากระบบ</button>
+    </div>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('home')">🏠 หน้าหลัก</button>
+    <button class="nav-tab" onclick="showPage('quiz')">📝 ทำข้อสอบ</button>
+    <button class="nav-tab" onclick="showPage('stats')">📊 สถิติ</button>
+    <button class="nav-tab" id="adminTab" onclick="showPage('admin')" style="display:none">⚙️ จัดการ</button>
+  </div>
+
+  <div class="page active" id="page-home">
+    <p class="page-title">เลือกหมวดวิชาเพื่อเริ่มทำข้อสอบ</p>
+    <p class="page-sub">หลักสูตร ว.14/2566 ออกข้อสอบโดยมหาวิทยาลัยธรรมศาสตร์ · รวบรวมย้อนหลัง 10 ปี (พ.ศ. 2557–2566)</p>
+    <div id="subjectContainer"></div>
+  </div>
+
+  <div class="page" id="page-quiz">
+    <div class="quiz-header">
+      <p class="page-title" id="quizTitle">ทำข้อสอบ</p>
+      <div class="quiz-meta">
+        <span class="badge badge-part" id="quizBadgePart"></span>
+        <span class="badge badge-subject" id="quizBadgeSubject"></span>
+        <span class="badge badge-progress" id="quizBadgeProgress"></span>
+        <span class="badge badge-timer" id="quizBadgeTimer">⏱ 00:00</span>
+      </div>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="quizProgress" style="width:0%"></div></div>
+    <div id="quizContainer"></div>
+    <div class="quiz-actions">
+      <button class="btn btn-danger" onclick="stopQuiz()">หยุด/ยกเลิก</button>
+      <button class="btn btn-secondary" id="btnPrev" onclick="prevQ()" style="display:none">◀ ย้อนกลับ</button>
+      <button class="btn btn-primary" id="btnNext" onclick="nextQ()">ถัดไป ▶</button>
+    </div>
+  </div>
+
+  <div class="page" id="page-result">
+    <p class="page-title">🏆 ผลการทดสอบ</p>
+    <div class="result-hero" id="resultCard"></div>
+    <div class="stats-grid" id="resultStats"></div>
+    <p class="page-title" style="font-size:17px;margin-bottom:12px;">📋 เฉลยทุกข้อ</p>
+    <div id="reviewList"></div>
+    <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="showPage('home')">เลือกหมวดวิชาใหม่</button>
+      <button class="btn btn-secondary" onclick="retryQuiz()">ทำชุดนี้อีกครั้ง</button>
+    </div>
+  </div>
+
+  <div class="page" id="page-stats">
+    <p class="page-title">📊 สถิติการทดสอบ</p>
+    <p class="page-sub">สรุปผลการทดสอบทั้งหมดของบัญชีคุณ</p>
+    <div class="stats-overall" id="statsOverall"></div>
+    <p class="page-title" style="font-size:17px;margin-bottom:12px;">คะแนนเฉลี่ยแยกตามหมวด</p>
+    <div id="barChart"></div>
+    <p class="page-title" style="font-size:17px;margin:22px 0 12px;">ประวัติการทดสอบ</p>
+    <div style="overflow-x:auto;">
+      <table class="history-table">
+        <thead><tr><th>#</th><th>ส่วน</th><th>หมวดวิชา</th><th>คะแนน</th><th>ข้อ</th><th>เวลา</th><th>วันที่</th></tr></thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="page" id="page-admin">
+    <p class="page-title">⚙️ จัดการผู้ใช้งาน</p>
+    <div class="admin-info">⚠️ หน้านี้สำหรับผู้ดูแลระบบเท่านั้น · ผู้ดูแลเป็นผู้กำหนด Username และ Password ให้ผู้สมัครสอบทุกคน</div>
+    <div class="user-list" id="userList"></div>
+    <p class="page-title" style="font-size:17px;margin:20px 0 12px;">➕ เพิ่มผู้ใช้ใหม่</p>
+    <div class="add-user-form">
+      <input type="text" id="newUsername" placeholder="Username">
+      <input type="password" id="newPassword" placeholder="Password">
+      <input type="text" id="newName" placeholder="ชื่อ-นามสกุล">
+      <button class="btn btn-primary btn-sm" onclick="addUser()">เพิ่มผู้ใช้</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

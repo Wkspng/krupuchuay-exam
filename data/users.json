@@ -1,0 +1,20 @@
+[
+  {
+    "username": "admin",
+    "password": "admin1234",
+    "name": "ผู้ดูแลระบบ",
+    "role": "admin"
+  },
+  {
+    "username": "student01",
+    "password": "thammasat01",
+    "name": "นางสาว สมหญิง ใจดี",
+    "role": "user"
+  },
+  {
+    "username": "student02",
+    "password": "thammasat02",
+    "name": "นาย วิชัย มุ่งดี",
+    "role": "user"
+  }
+]

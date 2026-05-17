@@ -1,0 +1,387 @@
+'use strict';
+
+// ===== DATA STRUCTURE =====
+const PARTS = [
+  {id:'p1',name:'ส่วนที่ 1 : ความรอบรู้',short:'ความรอบรู้',score:'75 คะแนน',icon:'📖',tc:'#4fc3f7',bg:'rgba(79,195,247,.12)'},
+  {id:'p2',name:'ส่วนที่ 2 : ความสามารถทั่วไป',short:'ความสามารถทั่วไป',score:'100 คะแนน',icon:'🧮',tc:'#f0c040',bg:'rgba(240,192,64,.12)'},
+  {id:'p3',name:'ส่วนที่ 3 : วิชาชีพครูและคุณธรรม',short:'วิชาชีพครู',score:'25 คะแนน',icon:'🎓',tc:'#9b59b6',bg:'rgba(155,89,182,.12)'},
+];
+const SUBJECTS = [
+  {id:'const_law',part:'p1',name:'รัฐธรรมนูญและกฎหมายการศึกษา',icon:'⚖️'},
+  {id:'edu_acts',part:'p1',name:'พ.ร.บ. การศึกษา / ข้าราชการครู',icon:'📜'},
+  {id:'social_econ',part:'p1',name:'สังคม เศรษฐกิจ การเมือง บ้านเมือง',icon:'🌏'},
+  {id:'policy',part:'p1',name:'นโยบายรัฐ / ปฏิรูปการศึกษา',icon:'🏛️'},
+  {id:'thai_lang',part:'p2',name:'ภาษาไทย (อ่านจับใจความ / ไวยากรณ์)',icon:'🔤'},
+  {id:'math',part:'p2',name:'คณิตศาสตร์และตรรกศาสตร์',icon:'📐'},
+  {id:'reasoning',part:'p2',name:'เหตุผลและมิติสัมพันธ์',icon:'🧠'},
+  {id:'eng_basic',part:'p2',name:'ภาษาอังกฤษพื้นฐาน',icon:'🔡'},
+  {id:'ethics',part:'p3',name:'คุณธรรม จริยธรรม จรรยาบรรณครู',icon:'🌸'},
+  {id:'prof_std',part:'p3',name:'มาตรฐานวิชาชีพและการปฏิบัติงาน',icon:'📋'},
+];
+
+const QB = {
+const_law: [
+  {q:'รัฐธรรมนูญแห่งราชอาณาจักรไทย พ.ศ. 2560 มาตราใดที่บัญญัติสิทธิในการได้รับการศึกษาไม่น้อยกว่า 12 ปี โดยไม่เสียค่าใช้จ่าย',opts:['มาตรา 54','มาตรา 55','มาตรา 57','มาตรา 60'],ans:0,explain:'รัฐธรรมนูญ 2560 มาตรา 54 บัญญัติว่า รัฐต้องดำเนินการให้เด็กทุกคนได้รับการศึกษาเป็นเวลาสิบสองปี ตั้งแต่ก่อนวัยเรียนจนจบการศึกษาภาคบังคับ อย่างมีคุณภาพโดยไม่เก็บค่าใช้จ่าย',topic:'รัฐธรรมนูญ 2560',year:2566},
+  {q:'พระราชบัญญัติการศึกษาแห่งชาติ พ.ศ. 2542 กำหนดให้การจัดการศึกษามีกี่รูปแบบ',opts:['2 รูปแบบ','3 รูปแบบ','4 รูปแบบ','5 รูปแบบ'],ans:1,explain:'มาตรา 15 กำหนดการจัดการศึกษา 3 รูปแบบ คือ การศึกษาในระบบ การศึกษานอกระบบ และการศึกษาตามอัธยาศัย',topic:'พ.ร.บ. การศึกษา 2542',year:2563},
+  {q:'ตาม พ.ร.บ. การศึกษาแห่งชาติ พ.ศ. 2542 การศึกษาขั้นพื้นฐานครอบคลุมการศึกษากี่ปี',opts:['9 ปี','12 ปี','15 ปี','6 ปี'],ans:1,explain:'มาตรา 17 กำหนดให้การศึกษาขั้นพื้นฐานครอบคลุมการศึกษาก่อนระดับอุดมศึกษา 12 ปี',topic:'พ.ร.บ. การศึกษา 2542',year:2558},
+  {q:'ตาม พ.ร.บ. การศึกษาแห่งชาติ พ.ศ. 2542 "การศึกษาตลอดชีวิต" หมายถึงสิ่งใด',opts:['การศึกษาจนกว่าจะเสียชีวิต','การผสมผสานระหว่างการศึกษาในระบบ นอกระบบ และตามอัธยาศัย','การเรียนในมหาวิทยาลัยเปิด','การฝึกอบรมเพื่อพัฒนาอาชีพ'],ans:1,explain:'มาตรา 8 กำหนดให้จัดการศึกษาตลอดชีวิต โดยผสมผสานทั้ง 3 รูปแบบให้สัมพันธ์กัน',topic:'พ.ร.บ. การศึกษา 2542',year:2561},
+  {q:'คุรุสภา ก่อตั้งขึ้นตาม พ.ร.บ. ฉบับใด',opts:['พ.ร.บ. การศึกษาแห่งชาติ 2542','พ.ร.บ. สภาครูและบุคลากรทางการศึกษา 2546','พ.ร.บ. ระเบียบข้าราชการครูฯ 2547','พ.ร.บ. ระเบียบบริหารราชการกระทรวงศึกษาธิการ 2546'],ans:1,explain:'คุรุสภาจัดตั้งตาม พ.ร.บ. สภาครูและบุคลากรทางการศึกษา พ.ศ. 2546 ทำหน้าที่กำหนดมาตรฐานและออกใบอนุญาตประกอบวิชาชีพ',topic:'คุรุสภา',year:2564},
+  {q:'ใบอนุญาตประกอบวิชาชีพครูมีอายุกี่ปี',opts:['3 ปี','5 ปี','7 ปี','10 ปี'],ans:1,explain:'ใบอนุญาตประกอบวิชาชีพครูมีอายุ 5 ปี และต้องยื่นคำขอต่ออายุก่อนหมดอายุ',topic:'คุรุสภา',year:2565},
+  {q:'พ.ร.บ. การศึกษาภาคบังคับ พ.ศ. 2545 ผู้ปกครองที่ไม่ส่งเด็กเข้าเรียนการศึกษาภาคบังคับมีโทษอย่างไร',opts:['จำคุกไม่เกิน 1 เดือน','ปรับไม่เกิน 1,000 บาท','ปรับไม่เกิน 3,000 บาท','ปรับไม่เกิน 5,000 บาท'],ans:1,explain:'มาตรา 14 บัญญัติว่าผู้ปกครองที่ไม่ส่งเด็กเข้าเรียนการศึกษาภาคบังคับมีโทษปรับไม่เกิน 1,000 บาท',topic:'การศึกษาภาคบังคับ',year:2559},
+  {q:'สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน (สพฐ.) จัดตั้งตาม พ.ร.บ. ใด',opts:['พ.ร.บ. การศึกษาแห่งชาติ 2542','พ.ร.บ. ระเบียบบริหารราชการกระทรวงศึกษาธิการ 2546','พ.ร.บ. ระเบียบข้าราชการครูฯ 2547','พ.ร.บ. การศึกษาภาคบังคับ 2545'],ans:1,explain:'สพฐ. จัดตั้งขึ้นตาม พ.ร.บ. ระเบียบบริหารราชการกระทรวงศึกษาธิการ พ.ศ. 2546',topic:'โครงสร้างกระทรวง',year:2560},
+  {q:'ครูผู้ช่วยต้องปฏิบัติหน้าที่ทดลองงานกี่ปีก่อนได้รับแต่งตั้งเป็นครู',opts:['1 ปี','2 ปี','3 ปี','4 ปี'],ans:1,explain:'ครูผู้ช่วยต้องทดลองปฏิบัติงาน 2 ปี และผ่านการประเมินจึงจะได้รับแต่งตั้งเป็นครู',topic:'ระเบียบ ก.ค.ศ.',year:2566},
+  {q:'หลักการจัดการศึกษาตามมาตรา 22 ของ พ.ร.บ. การศึกษาแห่งชาติ 2542 คืออะไร',opts:['ครูเป็นศูนย์กลางการเรียนรู้','ผู้เรียนสำคัญที่สุด ต้องพัฒนาตามธรรมชาติ','การสอบวัดผลเป็นหัวใจของการศึกษา','ครอบครัวเป็นแกนหลักในการจัดการศึกษา'],ans:1,explain:'มาตรา 22 บัญญัติว่าการจัดการศึกษาต้องยึดหลักว่าผู้เรียนทุกคนมีความสามารถเรียนรู้และพัฒนาตนเองได้ และถือว่าผู้เรียนมีความสำคัญที่สุด',topic:'พ.ร.บ. การศึกษา 2542',year:2564},
+  {q:'โทษสูงสุดของครูที่ปฏิบัติผิดวินัยร้ายแรงคืออะไร',opts:['ลดขั้นเงินเดือน','ปลดออก','ไล่ออก','พักราชการ'],ans:2,explain:'โทษทางวินัยร้ายแรงมีสองระดับ คือ ปลดออกและไล่ออก โดยไล่ออกเป็นโทษสูงสุด',topic:'วินัยครู',year:2562},
+  {q:'องค์กรใดทำหน้าที่ประเมินคุณภาพภายนอกสถานศึกษา',opts:['สมศ.','สพฐ.','สกศ.','คุรุสภา'],ans:0,explain:'สมศ. (สำนักงานรับรองมาตรฐานและประเมินคุณภาพการศึกษา) ทำหน้าที่ประเมินคุณภาพภายนอกสถานศึกษาทุกระดับ',topic:'การประกันคุณภาพ',year:2560},
+],
+edu_acts: [
+  {q:'"ก.ค.ศ." ย่อมาจากอะไร',opts:['คณะกรรมการข้าราชการครูและสถานศึกษา','คณะกรรมการข้าราชการครูและบุคลากรทางการศึกษา','คณะกรรมการการศึกษาขั้นพื้นฐาน','คณะกรรมการคุรุสภาและสถานศึกษา'],ans:1,explain:'ก.ค.ศ. ย่อมาจาก คณะกรรมการข้าราชการครูและบุคลากรทางการศึกษา มีอำนาจกำหนดนโยบายบริหารงานบุคคล',topic:'ก.ค.ศ.',year:2558},
+  {q:'วิทยฐานะของข้าราชการครูมีกี่ระดับ',opts:['3 ระดับ','4 ระดับ','5 ระดับ','6 ระดับ'],ans:1,explain:'วิทยฐานะมี 4 ระดับ ได้แก่ ชำนาญการ ชำนาญการพิเศษ เชี่ยวชาญ และเชี่ยวชาญพิเศษ',topic:'วิทยฐานะ',year:2561},
+  {q:'ข้อใดคือมาตรฐานความรู้วิชาชีพครูที่คุรุสภากำหนดไว้ทั้งหมด',opts:['9 มาตรฐาน','11 มาตรฐาน','12 มาตรฐาน','14 มาตรฐาน'],ans:1,explain:'คุรุสภากำหนดมาตรฐานวิชาชีพครู 11 มาตรฐาน ครอบคลุมมาตรฐานความรู้ ประสบการณ์วิชาชีพ และการปฏิบัติงาน',topic:'มาตรฐานวิชาชีพ',year:2564},
+  {q:'พ.ร.บ. คุ้มครองเด็ก พ.ศ. 2546 ผู้ที่พบเห็นเด็กถูกทารุณกรรมต้องทำอย่างไร',opts:['รายงานต่อตำรวจภายใน 48 ชั่วโมง','แจ้งต่อพนักงานเจ้าหน้าที่หรือผู้มีหน้าที่คุ้มครองเด็กทันที','รายงานต่อผู้บังคับบัญชาก่อน','รวบรวมหลักฐานก่อนแจ้ง'],ans:1,explain:'มาตรา 29 บัญญัติว่าผู้ที่พบเห็นหรือทราบว่าเด็กถูกทารุณกรรมต้องแจ้งต่อพนักงานเจ้าหน้าที่หรือผู้มีหน้าที่คุ้มครองเด็กโดยทันที',topic:'คุ้มครองเด็ก',year:2565},
+  {q:'ใครมีอำนาจแต่งตั้งและถอดถอนผู้อำนวยการโรงเรียน สังกัด สพฐ.',opts:['รัฐมนตรีว่าการกระทรวงศึกษาธิการ','เลขาธิการ กพฐ.','ผู้อำนวยการสำนักงานเขตพื้นที่การศึกษา','ก.ค.ศ.'],ans:2,explain:'ผู้อำนวยการสำนักงานเขตพื้นที่การศึกษามีอำนาจแต่งตั้งถอดถอนผู้อำนวยการโรงเรียนในเขตพื้นที่',topic:'โครงสร้างบริหาร',year:2560},
+  {q:'การประเมินวิทยฐานะแบบ "วPA" เริ่มใช้อย่างเป็นทางการในปีใด',opts:['พ.ศ. 2562','พ.ศ. 2564','พ.ศ. 2565','พ.ศ. 2566'],ans:2,explain:'ระบบประเมินวิทยฐานะดิจิทัล (DPA) ตามหลักเกณฑ์ วPA เริ่มใช้อย่างเป็นทางการในปี พ.ศ. 2565',topic:'วPA',year:2566},
+  {q:'ข้อใดไม่ใช่จรรยาบรรณวิชาชีพครูตามที่คุรุสภากำหนด',opts:['จรรยาบรรณต่อตนเอง','จรรยาบรรณต่อวิชาชีพ','จรรยาบรรณต่อสังคม','จรรยาบรรณต่อรัฐบาล'],ans:3,explain:'จรรยาบรรณวิชาชีพครูมี 5 ด้าน คือ ต่อตนเอง ต่อวิชาชีพ ต่อผู้รับบริการ ต่อผู้ร่วมประกอบวิชาชีพ และต่อสังคม ไม่มีด้านต่อรัฐบาล',topic:'จรรยาบรรณ',year:2563},
+  {q:'การประกันคุณภาพภายในสถานศึกษาตาม พ.ร.บ. การศึกษาฯ เป็นหน้าที่ของใคร',opts:['สมศ.','สพฐ.','สถานศึกษาและหน่วยงานต้นสังกัด','กระทรวงศึกษาธิการ'],ans:2,explain:'มาตรา 48 กำหนดให้หน่วยงานต้นสังกัดและสถานศึกษาจัดให้มีระบบประกันคุณภาพภายใน',topic:'ประกันคุณภาพ',year:2565},
+],
+social_econ: [
+  {q:'ยุทธศาสตร์ชาติ 20 ปี (พ.ศ. 2561–2580) มีกี่ด้าน',opts:['4 ด้าน','5 ด้าน','6 ด้าน','7 ด้าน'],ans:2,explain:'ยุทธศาสตร์ชาติ 20 ปี ประกอบด้วย 6 ด้าน ได้แก่ ความมั่นคง การแข่งขัน การพัฒนาทรัพยากรมนุษย์ การสร้างโอกาส สังคม และการปรับสมดุล',topic:'ยุทธศาสตร์ชาติ',year:2562},
+  {q:'เป้าหมายการพัฒนาที่ยั่งยืน (SDGs) เป้าหมายที่ 4 คือด้านใด',opts:['ขจัดความยากจน','การศึกษาที่มีคุณภาพ','สุขภาพที่ดี','พลังงานที่ยั่งยืน'],ans:1,explain:'SDGs เป้าหมายที่ 4 คือ "Ensure inclusive and equitable quality education" หรือการศึกษาที่มีคุณภาพอย่างเท่าเทียมและครอบคลุม',topic:'SDGs',year:2563},
+  {q:'ประชาคมอาเซียนประกอบด้วยเสาหลักกี่ด้าน',opts:['2 ด้าน','3 ด้าน','4 ด้าน','5 ด้าน'],ans:1,explain:'ประชาคมอาเซียนมี 3 เสาหลัก ได้แก่ ประชาคมการเมืองและความมั่นคง ประชาคมเศรษฐกิจ และประชาคมสังคมและวัฒนธรรม',topic:'อาเซียน',year:2558},
+  {q:'ปรัชญาเศรษฐกิจพอเพียงของรัชกาลที่ 9 ประกอบด้วยหลักกี่ประการ',opts:['2 ประการ','3 ประการ','4 ประการ','5 ประการ'],ans:1,explain:'หลักปรัชญาเศรษฐกิจพอเพียงมี 3 ประการ คือ ความพอประมาณ ความมีเหตุผล และการมีภูมิคุ้มกัน',topic:'เศรษฐกิจพอเพียง',year:2564},
+  {q:'วันครูแห่งชาติของประเทศไทยตรงกับวันใด',opts:['10 มกราคม','16 มกราคม','5 กุมภาพันธ์','1 มีนาคม'],ans:1,explain:'วันครูแห่งชาติคือวันที่ 16 มกราคม ของทุกปี เริ่มตั้งแต่ พ.ศ. 2500 ตรงกับวันก่อตั้งคุรุสภา',topic:'วันสำคัญ',year:2559},
+  {q:'Thailand 4.0 เน้นการพัฒนาเศรษฐกิจด้วยสิ่งใดเป็นหลัก',opts:['อุตสาหกรรมหนัก','การเกษตรเพื่อการส่งออก','นวัตกรรมและเทคโนโลยี','การท่องเที่ยวเชิงนิเวศ'],ans:2,explain:'Thailand 4.0 มุ่งขับเคลื่อนเศรษฐกิจด้วยนวัตกรรม (Innovation-driven) โดยเน้น 10 อุตสาหกรรมเป้าหมาย',topic:'Thailand 4.0',year:2565},
+  {q:'อาเซียนมีสมาชิกทั้งหมดกี่ประเทศ',opts:['8 ประเทศ','10 ประเทศ','12 ประเทศ','15 ประเทศ'],ans:1,explain:'อาเซียนมีสมาชิก 10 ประเทศ ได้แก่ ไทย อินโดนีเซีย มาเลเซีย ฟิลิปปินส์ สิงคโปร์ บรูไน เวียดนาม ลาว พม่า และกัมพูชา',topic:'อาเซียน',year:2560},
+  {q:'แผนพัฒนาการศึกษาแห่งชาติ (พ.ศ. 2560–2579) มีวิสัยทัศน์ว่าอย่างไร',opts:['คนไทยทุกคนได้รับการศึกษาที่มีคุณภาพ','คนไทยทุกคนมีการศึกษาและเรียนรู้ตลอดชีวิต มีคุณลักษณะเป็นพลเมืองดี','คนไทยทุกคนเป็นผู้ที่มีความรู้คู่คุณธรรม','ประเทศไทยมีระบบการศึกษาที่มีคุณภาพระดับโลก'],ans:1,explain:'วิสัยทัศน์ของแผนการศึกษาแห่งชาติ 2560-2579 คือ "คนไทยทุกคนได้รับการศึกษาและเรียนรู้ตลอดชีวิตอย่างมีคุณภาพ ดำรงชีวิตอย่างเป็นสุข สอดคล้องกับหลักปรัชญาเศรษฐกิจพอเพียง"',topic:'แผนการศึกษา',year:2561},
+],
+policy: [
+  {q:'"การศึกษาเพื่อปวงชน" (Education for All) เป็นแนวคิดของหน่วยงานใด',opts:['WHO','UNICEF','UNESCO','World Bank'],ans:2,explain:'UNESCO ริเริ่มแนวคิด Education for All ที่กรอบดาการ์ พ.ศ. 2543',topic:'นโยบายนานาชาติ',year:2558},
+  {q:'นโยบาย "เรียนฟรี 15 ปี อย่างมีคุณภาพ" ครอบคลุมการศึกษาระดับใด',opts:['ก่อนประถม–ม.3','ก่อนประถม–ม.6 (หรือเทียบเท่า)','ประถม–ม.6','อนุบาล–ป.6'],ans:1,explain:'นโยบายเรียนฟรี 15 ปีครอบคลุมตั้งแต่ระดับก่อนประถมศึกษาจนถึงมัธยมศึกษาตอนปลายหรือเทียบเท่า (ปวช.)',topic:'นโยบายเรียนฟรี',year:2563},
+  {q:'หลักการสำคัญของ "การปฏิรูปการศึกษา" ตาม พ.ร.บ. การศึกษาแห่งชาติ 2542 คือข้อใด',opts:['เพิ่มงบประมาณการศึกษา','ผู้เรียนเป็นศูนย์กลาง ครูเป็นผู้อำนวยความสะดวก','สอบมาตรฐานเดียวทั้งประเทศ','รวมศูนย์การบริหารสู่ส่วนกลาง'],ans:1,explain:'หัวใจของการปฏิรูปการศึกษาคือการยึดผู้เรียนเป็นศูนย์กลาง (Child-Centered) โดยครูทำหน้าที่ส่งเสริมและสนับสนุนการเรียนรู้',topic:'ปฏิรูปการศึกษา',year:2566},
+  {q:'หน่วยงานใดเป็นผู้กำหนดและประกาศใช้หลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน',opts:['คุรุสภา','สพฐ.','สมศ.','กระทรวงศึกษาธิการ'],ans:1,explain:'สพฐ. (สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน) เป็นผู้กำหนดและประกาศใช้หลักสูตรแกนกลางฯ',topic:'หลักสูตรแกนกลาง',year:2562},
+  {q:'การประเมินคุณภาพภายนอกโรงเรียนจัดทำโดยองค์กรใดและควรทำทุกกี่ปี',opts:['สมศ. ทุก 3 ปี','สมศ. ทุก 5 ปี','สพฐ. ทุก 3 ปี','คุรุสภา ทุก 5 ปี'],ans:1,explain:'สมศ. เป็นผู้ประเมินภายนอก โดยประเมินทุก 5 ปี ตามแนวปฏิบัติปัจจุบัน',topic:'ประกันคุณภาพ',year:2564},
+],
+thai_lang: [
+  {q:'คำในข้อใดเป็นคำซ้อนทุกคำ',opts:['รูปร่าง เพื่อนฝูง ขยะแขยง','รวดเร็ว กระดาน อ่อนโยน','ดอกไม้ นักเรียน ห้องเรียน','ครูบาอาจารย์ หนังสือพิมพ์ ขนมปัง'],ans:0,explain:'รูปร่าง (รูป+ร่าง) เพื่อนฝูง (เพื่อน+ฝูง) ขยะแขยง (ขยะ+แขยง) ล้วนเป็นคำซ้อนที่มีพยางค์ความหมายใกล้เคียง',topic:'คำซ้อน',year:2566},
+  {q:'สำนวนไทย "น้ำขึ้นให้รีบตัก" มีความหมายตรงกับข้อใด',opts:['ให้รีบเก็บน้ำฝนในหน้าฝน','ฉวยโอกาสทำสิ่งที่ต้องการเมื่อมีโอกาส','ต้องรีบดำเนินงานก่อนฤดูน้ำหลาก','ให้รู้จักใช้ทรัพยากรอย่างประหยัด'],ans:1,explain:'สำนวน "น้ำขึ้นให้รีบตัก" หมายความว่า เมื่อมีโอกาสหรือเวลาเหมาะสมควรรีบฉวยโอกาสนั้น',topic:'สำนวน',year:2562},
+  {q:'ข้อใดคือลักษณะของ "อุปมาโวหาร"',opts:['เปรียบเทียบสิ่งหนึ่งเป็นอีกสิ่งโดยตรง','เปรียบเทียบโดยใช้คำเชื่อม เช่น เหมือน คล้าย ดุจ ดัง','พูดถึงสิ่งไม่มีชีวิตราวกับมีชีวิต','พูดเกินจริงเพื่อเน้นย้ำความรู้สึก'],ans:1,explain:'อุปมาโวหารคือการเปรียบเทียบโดยใช้คำเชื่อม เช่น เหมือน ดุจ ดัง ราวกับ ส่วนการเปรียบโดยตรงเรียกอุปลักษณ์',topic:'โวหาร',year:2560},
+  {q:'คำราชาศัพท์สำหรับพระมหากษัตริย์ แทนคำว่า "นอน" คือข้อใด',opts:['บรรทม','เสวย','ประทับ','พระราชดำริ'],ans:0,explain:'"บรรทม" คือราชาศัพท์แทนคำว่า "นอน" ส่วน "เสวย" แทน "กิน" และ "ประทับ" แทน "นั่ง/อยู่"',topic:'ราชาศัพท์',year:2559},
+  {q:'ข้อใดอ่านคำถูกต้อง สำหรับคำว่า "สามัคคี"',opts:['สา-มัก-คี','สา-มัค-คี','สา-หมัก-คี','สา-มา-คี'],ans:0,explain:'"สามัคคี" อ่านว่า สา-มัก-คี โดยพยางค์ที่สองออกเสียง มัก',topic:'การอ่าน',year:2563},
+  {q:'"เด็กๆ วิ่งเล่นกันอย่างสนุกสนาน บ้างปีนต้นไม้ บ้างโยนลูกบอล" เป็นประโยคชนิดใด',opts:['ประโยคความเดียว','ประโยคความรวม','ประโยคความซ้อน','ประโยคคำถาม'],ans:1,explain:'เป็นประโยคความรวมที่มีหลายประโยครวมกันโดยใช้คำเชื่อม "บ้าง...บ้าง"',topic:'ประเภทประโยค',year:2565},
+  {q:'ข้อใดเป็นคำประสมที่ถูกต้อง',opts:['น้ำตา (น้ำ+ตา หมายถึงน้ำที่ตา)','ลูกน้ำ (ลูก+น้ำ หมายถึงตัวอ่อนของยุง)','แม่น้ำ (แม่+น้ำ หมายถึงแม่ของน้ำ)','น้ำใจ (น้ำ+ใจ หมายถึงน้ำในใจ)'],ans:1,explain:'"ลูกน้ำ" เป็นคำประสมที่มีความหมายใหม่ต่างจากคำเดิม คือหมายถึงตัวอ่อนของยุง ไม่ใช่ลูกของน้ำ',topic:'คำประสม',year:2566},
+],
+math: [
+  // ===== ชุดเดิม 10 ข้อ =====
+  {q:'ถ้า 5x - 3 = 22 แล้ว x มีค่าเท่าใด',opts:['4','5','6','7'],ans:1,explain:'5x - 3 = 22 → 5x = 25 → x = 5',topic:'พีชคณิต',year:2566},
+  {q:'วงกลมมีรัศมี 7 เซนติเมตร มีพื้นที่เท่าใด (ใช้ π ≈ 22/7)',opts:['44 ตร.ซม.','77 ตร.ซม.','154 ตร.ซม.','308 ตร.ซม.'],ans:2,explain:'พื้นที่ = πr² = (22/7) × 49 = 154 ตารางเซนติเมตร',topic:'เรขาคณิต',year:2563},
+  {q:'ร้อยละ 30 ของ 450 คือเท่าใด',opts:['100','125','135','150'],ans:2,explain:'30% × 450 = 135',topic:'ร้อยละ',year:2558},
+  {q:'ถ้าอัตราส่วนฝอง:อ้อย = 3:5 และเงินอ้อย = 2,500 บาท เงินฝองมีเท่าใด',opts:['1,200 บาท','1,500 บาท','1,800 บาท','2,000 บาท'],ans:1,explain:'ฝอง = (3/5) × 2,500 = 1,500 บาท',topic:'อัตราส่วน',year:2564},
+  {q:'A={1,2,3,4,5} และ B={2,4,6,8} แล้ว A∩B มีสมาชิกกี่ตัว',opts:['1 ตัว','2 ตัว','3 ตัว','4 ตัว'],ans:1,explain:'A∩B = {2,4} มีสมาชิก 2 ตัว',topic:'เซต',year:2562},
+  {q:'ลำดับ 2, 5, 10, 17, 26, ... พจน์ที่ 7 คือเท่าใด',opts:['37','49','50','65'],ans:2,explain:'ผลต่าง: 3,5,7,9,11,13 → พจน์ที่ 6=37 พจน์ที่ 7=37+13=50',topic:'ลำดับอนุกรม',year:2565},
+  {q:'ค่าเฉลี่ยของ 12, 15, 18, 20, 25 เท่ากับเท่าใด',opts:['17','18','19','20'],ans:1,explain:'(12+15+18+20+25)/5 = 90/5 = 18',topic:'สถิติ',year:2559},
+  {q:'มุมภายในทั้งหมดของรูปหกเหลี่ยมรวมกันได้เท่าใด',opts:['540°','600°','720°','900°'],ans:2,explain:'ผลรวมมุมภายใน = (n-2) × 180° = (6-2) × 180° = 720°',topic:'เรขาคณิต',year:2566},
+  {q:'จำนวนใดต่อไปนี้เป็นจำนวนเฉพาะ',opts:['51','57','61','91'],ans:2,explain:'61 เป็นจำนวนเฉพาะ ส่วน 51=3×17, 57=3×19, 91=7×13',topic:'จำนวนเฉพาะ',year:2561},
+  {q:'ถ้าราคาสินค้าลดลง 20% ราคาจะเหลือกี่เปอร์เซ็นต์ของราคาเดิม',opts:['70%','75%','80%','85%'],ans:2,explain:'ลดลง 20% → เหลือ 100-20 = 80%',topic:'ร้อยละ',year:2560},
+  // ===== เพิ่มใหม่ 20 ข้อ =====
+  {q:'ถ้า 3x + 7 = 28 แล้ว x มีค่าเท่าใด',opts:['6','7','8','9'],ans:1,explain:'3x + 7 = 28 → 3x = 21 → x = 7',topic:'พีชคณิต',year:2564},
+  {q:'สามเหลี่ยมมีฐาน 12 ซม. และสูง 8 ซม. มีพื้นที่เท่าใด',opts:['48 ตร.ซม.','60 ตร.ซม.','72 ตร.ซม.','96 ตร.ซม.'],ans:0,explain:'พื้นที่สามเหลี่ยม = (1/2) × ฐาน × สูง = (1/2) × 12 × 8 = 48 ตร.ซม.',topic:'เรขาคณิต',year:2563},
+  {q:'ร้อยละ 15 ของ 800 คือเท่าใด',opts:['80','100','120','150'],ans:2,explain:'15% × 800 = 120',topic:'ร้อยละ',year:2562},
+  {q:'A={2,4,6,8,10} และ B={4,8,12} แล้ว A∪B มีสมาชิกกี่ตัว',opts:['5 ตัว','6 ตัว','7 ตัว','8 ตัว'],ans:1,explain:'A∪B = {2,4,6,8,10,12} มีสมาชิก 6 ตัว',topic:'เซต',year:2565},
+  {q:'ลำดับ 3, 6, 12, 24, 48, ... พจน์ที่ 6 คือเท่าใด',opts:['72','84','96','108'],ans:2,explain:'เป็นลำดับเรขาคณิต อัตราส่วนร่วม = 2 → พจน์ที่ 6 = 3 × 2⁵ = 96',topic:'ลำดับอนุกรม',year:2561},
+  {q:'ค่ามัธยฐาน (Median) ของ 3, 7, 8, 12, 15 เท่ากับเท่าใด',opts:['7','8','10','12'],ans:1,explain:'เรียงข้อมูลแล้ว: 3, 7, 8, 12, 15 ค่ากลางคือตัวที่ 3 = 8',topic:'สถิติ',year:2563},
+  {q:'ฝากเงิน 10,000 บาท อัตราดอกเบี้ย 3% ต่อปี ได้ดอกเบี้ยปีแรกเท่าใด',opts:['100 บาท','200 บาท','300 บาท','400 บาท'],ans:2,explain:'ดอกเบี้ย = 10,000 × 3/100 = 300 บาท',topic:'ดอกเบี้ย',year:2560},
+  {q:'สี่เหลี่ยมผืนผ้ากว้าง 5 เมตร ยาว 8 เมตร มีเส้นรอบรูปเท่าใด',opts:['20 เมตร','24 เมตร','26 เมตร','40 เมตร'],ans:2,explain:'เส้นรอบรูป = 2(กว้าง + ยาว) = 2(5+8) = 26 เมตร',topic:'เรขาคณิต',year:2559},
+  {q:'ถ้า x:y = 2:3 และ x + y = 50 แล้ว x มีค่าเท่าใด',opts:['15','20','25','30'],ans:1,explain:'x = 2k, y = 3k → 5k = 50 → k = 10 → x = 20',topic:'อัตราส่วน',year:2562},
+  {q:'ทอยลูกเต๋า 1 ครั้ง ความน่าจะเป็นที่ได้จำนวนคู่เท่ากับเท่าใด',opts:['1/6','1/3','1/2','2/3'],ans:2,explain:'จำนวนคู่บนลูกเต๋าคือ 2, 4, 6 → P = 3/6 = 1/2',topic:'ความน่าจะเป็น',year:2566},
+  {q:'2⁵ มีค่าเท่าใด',opts:['16','25','32','64'],ans:2,explain:'2⁵ = 2×2×2×2×2 = 32',topic:'เลขยกกำลัง',year:2558},
+  {q:'√169 มีค่าเท่าใด',opts:['11','12','13','14'],ans:2,explain:'√169 = 13 เพราะ 13 × 13 = 169',topic:'รากที่สอง',year:2563},
+  {q:'ฝูงไก่และกระต่ายรวม 12 ตัว มีขาทั้งหมด 34 ขา มีไก่กี่ตัว',opts:['5 ตัว','6 ตัว','7 ตัว','8 ตัว'],ans:2,explain:'ให้ไก่ = x → 2x + 4(12-x) = 34 → -2x = 34-48 = -14 → x = 7',topic:'สมการ',year:2564},
+  {q:'ค่าฐานนิยม (Mode) ของ 2, 3, 3, 5, 7, 7, 7, 8 เท่ากับเท่าใด',opts:['3','5','7','8'],ans:2,explain:'7 ปรากฏมากที่สุด (3 ครั้ง) ดังนั้นค่าฐานนิยม = 7',topic:'สถิติ',year:2561},
+  {q:'สินค้าราคา 1,200 บาท ลดราคา 25% จะซื้อได้ในราคาเท่าใด',opts:['800 บาท','850 บาท','900 บาท','950 บาท'],ans:2,explain:'ราคาหลังลด = 1,200 × (1 - 0.25) = 1,200 × 0.75 = 900 บาท',topic:'ร้อยละ',year:2565},
+  {q:'ผลรวมของจำนวนเต็ม 1 + 2 + 3 + ... + 20 มีค่าเท่าใด',opts:['190','200','210','220'],ans:2,explain:'ผลรวม = n(n+1)/2 = 20×21/2 = 210',topic:'อนุกรม',year:2562},
+  {q:'มุมเสริมของมุม 65 องศา มีขนาดเท่าใด',opts:['25°','35°','115°','125°'],ans:0,explain:'มุมเสริม รวมกันได้ 90° → 90° - 65° = 25°',topic:'เรขาคณิต',year:2560},
+  {q:'รถยนต์วิ่งด้วยความเร็ว 90 กม./ชม. ใช้เวลา 4 ชั่วโมง เดินทางได้กี่กิโลเมตร',opts:['300 กม.','320 กม.','350 กม.','360 กม.'],ans:3,explain:'ระยะทาง = ความเร็ว × เวลา = 90 × 4 = 360 กม.',topic:'ความเร็ว-ระยะทาง',year:2561},
+  {q:'ห.ร.ม. ของ 36 และ 48 เท่ากับเท่าใด',opts:['6','8','12','16'],ans:2,explain:'36 = 2²×3², 48 = 2⁴×3 → ห.ร.ม. = 2²×3 = 12',topic:'ห.ร.ม.',year:2559},
+  {q:'ค.ร.น. ของ 4, 6 และ 8 เท่ากับเท่าใด',opts:['12','18','24','48'],ans:2,explain:'ค.ร.น.(4,6,8) = 24 เนื่องจาก 24 หารด้วย 4, 6, 8 ได้ลงตัวทุกตัว',topic:'ค.ร.น.',year:2564},
+],
+reasoning: [
+  {q:'ครู : โรงเรียน = แพทย์ : ?',opts:['คนไข้','ยา','โรงพยาบาล','การผ่าตัด'],ans:2,explain:'ครูทำงานในโรงเรียน เช่นเดียวกับแพทย์ทำงานในโรงพยาบาล',topic:'อุปมาอุปไมย',year:2566},
+  {q:'ถ้า P → Q และ Q → R แล้วข้อสรุปใดถูกต้อง',opts:['R → P','P → R','Q → P','R → Q'],ans:1,explain:'จาก P→Q และ Q→R สรุปได้ว่า P→R (Hypothetical Syllogism)',topic:'ตรรกศาสตร์',year:2561},
+  {q:'คำที่ไม่สัมพันธ์กับกลุ่ม: จิตรกรรม ประติมากรรม สถาปัตยกรรม วรรณกรรม ดนตรีกรรม',opts:['จิตรกรรม','สถาปัตยกรรม','วรรณกรรม','ดนตรีกรรม'],ans:2,explain:'วรรณกรรมเป็นศิลปะทางภาษา ส่วนที่เหลือเป็นทัศนศิลป์/ศิลปะที่มองเห็น/ฟัง',topic:'การจำแนกหมวดหมู่',year:2560},
+  {q:'นักเรียน 30 คน ชอบคณิตฯ 18 คน ชอบวิทย์ 15 คน ชอบทั้งสองวิชา 8 คน ไม่ชอบทั้งสองมีกี่คน',opts:['3 คน','5 คน','7 คน','9 คน'],ans:1,explain:'ชอบอย่างน้อย 1 วิชา = 18+15-8=25 ไม่ชอบทั้งสอง = 30-25=5 คน',topic:'การนับ',year:2563},
+  {q:'ถ้า 2★3=7, 3★4=13, 4★5=21 แล้ว 5★6=?',opts:['29','31','33','35'],ans:1,explain:'รูปแบบ: a★b = a×b+1 → 5×6+1=31',topic:'รูปแบบตัวเลข',year:2565},
+  {q:'ABCDE : FGHIJ = KLMNO : ?',opts:['PQRST','PQRSU','PQRTS','QRSTU'],ans:0,explain:'ตัวอักษร 5 ตัวถัดไปตามลำดับ: K-O (11-15) → P-T (16-20)',topic:'รูปแบบ',year:2562},
+  {q:'ถ้า "สุนัขทุกตัวเป็นสัตว์" และ "สัตว์บางตัวกินหญ้า" สรุปได้ว่า',opts:['สุนัขทุกตัวกินหญ้า','สุนัขบางตัวกินหญ้า','สุนัขไม่กินหญ้า','ไม่สามารถสรุปเกี่ยวกับสุนัขได้'],ans:3,explain:'เราทราบแค่ว่าสัตว์บางตัวกินหญ้า แต่ไม่รู้ว่าสุนัขอยู่ในกลุ่มนั้นหรือไม่',topic:'ตรรกศาสตร์',year:2564},
+],
+eng_basic: [
+  {q:'Choose the correct sentence.',opts:["She don't like studying.","She doesn't like studying.","She not like studying.","She didn't likes studying."],ans:1,explain:'"She doesn\'t like studying" ถูกต้อง — บุรุษที่ 3 เอกพจน์ใช้ does + not = doesn\'t',topic:'Grammar',year:2566},
+  {q:'What does "curriculum" mean in Thai?',opts:['การประเมินผล','หลักสูตร','การจัดการชั้นเรียน','แผนการสอน'],ans:1,explain:'"Curriculum" = หลักสูตร คือแผนการเรียนรู้ที่กำหนดขอบเขตเนื้อหาและประสบการณ์ที่จัดให้ผู้เรียน',topic:'Vocabulary',year:2563},
+  {q:'She has been teaching for _____ years.',opts:['ten','a ten','the ten','some ten'],ans:0,explain:'ใช้ "ten" ตรงๆ ไม่ต้องมี article นำหน้าตัวเลข',topic:'Grammar',year:2561},
+  {q:'Which word means the same as "assess"?',opts:['avoid','evaluate','increase','ignore'],ans:1,explain:'"Assess" และ "evaluate" ต่างหมายถึงการประเมิน',topic:'Vocabulary',year:2564},
+  {q:'The passive voice of "The teacher explains the lesson" is:',opts:['The lesson is explaining by the teacher.','The lesson explained by the teacher.','The lesson is explained by the teacher.','The lesson was explain by the teacher.'],ans:2,explain:'Passive voice = Subject + to be + V3 → "The lesson is explained by the teacher"',topic:'Passive Voice',year:2562},
+  {q:'Choose the correct preposition: "Students learn best _____ doing."',opts:['with','by','in','on'],ans:1,explain:'"Learn by doing" เป็น Collocation ที่ถูกต้อง',topic:'Preposition',year:2565},
+  {q:'"Holistic education" refers to:',opts:['Education focusing only on academic scores.','Education that develops the whole person.','Online education platform.','Education for gifted students only.'],ans:1,explain:'"Holistic education" = การศึกษาแบบองค์รวมที่พัฒนาผู้เรียนทั้งด้านสติปัญญา อารมณ์ สังคม และร่างกาย',topic:'Educational Terms',year:2566},
+],
+ethics: [
+  {q:'จรรยาบรรณต่อผู้รับบริการ (นักเรียน) หมายถึงสิ่งใด',opts:['ปฏิบัติต่อผู้บังคับบัญชาด้วยความเคารพ','รัก เมตตา เอาใจใส่ ช่วยเหลือ ส่งเสริมให้กำลังใจแก่ศิษย์','ประพฤติตนเป็นแบบอย่างที่ดีแก่สังคม','พัฒนาตนเองอยู่เสมอ'],ans:1,explain:'จรรยาบรรณต่อผู้รับบริการ คือการรัก เมตตา เอาใจใส่ ช่วยเหลือและส่งเสริมให้กำลังใจแก่ศิษย์ตามบทบาทหน้าที่',topic:'จรรยาบรรณ',year:2564},
+  {q:'ข้อใดคือลักษณะของครูที่มี "อุดมการณ์ความเป็นครู"',opts:['สอนเพื่อรับเงินเดือนและสวัสดิการ','มุ่งมั่นพัฒนาผู้เรียนโดยไม่คำนึงถึงผลตอบแทน','ทำงานตามที่ผู้บังคับบัญชาสั่งเท่านั้น','ปฏิบัติงานตามกฎระเบียบอย่างเคร่งครัด'],ans:1,explain:'อุดมการณ์ความเป็นครูคือความมุ่งมั่นแท้จริงในการพัฒนาผู้เรียน โดยให้ความสำคัญคุณภาพศิษย์มากกว่าผลประโยชน์ส่วนตน',topic:'อุดมการณ์ครู',year:2562},
+  {q:'คุณธรรมพื้นฐาน 8 ประการของกระทรวงศึกษาธิการ ข้อใดไม่อยู่ในรายการ',opts:['ขยัน ประหยัด ซื่อสัตย์','สะอาด สุภาพ สามัคคี','มีวินัย มีน้ำใจ ใฝ่เรียนรู้','กตัญญู เมตตา อดทน'],ans:3,explain:'คุณธรรมพื้นฐาน 8 ประการ คือ ขยัน ประหยัด ซื่อสัตย์ มีวินัย สุภาพ สะอาด สามัคคี และมีน้ำใจ',topic:'คุณธรรมพื้นฐาน',year:2561},
+  {q:'"จิตวิญญาณความเป็นครู" (Teacher Spirit) หมายถึงสิ่งใด',opts:['การเป็นสมาชิกองค์กรครู','ความทุ่มเท รักในงาน เสียสละเพื่อศิษย์','การแต่งกายสุภาพตามระเบียบ','การมีวุฒิการศึกษาด้านการศึกษา'],ans:1,explain:'จิตวิญญาณความเป็นครูหมายถึงความทุ่มเท รักในอาชีพ เสียสละ และปรารถนาดีต่อศิษย์อย่างแท้จริง',topic:'จิตวิญญาณครู',year:2565},
+  {q:'ครูนำภาพนักเรียนไปโพสต์โซเชียลโดยไม่ขออนุญาต ถือว่าละเมิดสิทธิใด',opts:['สิทธิในการศึกษา','สิทธิส่วนบุคคล (ความเป็นส่วนตัว)','สิทธิการรับข้อมูลข่าวสาร','สิทธิในทรัพย์สินทางปัญญา'],ans:1,explain:'ถือเป็นการละเมิดสิทธิส่วนบุคคล (Privacy rights) ตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562',topic:'จรรยาบรรณ',year:2566},
+  {q:'ข้อใดคือพฤติกรรมที่แสดงถึง "จรรยาบรรณต่อตนเอง" ของครู',opts:['ปฏิบัติงานตามคำสั่งผู้บังคับบัญชา','พัฒนาตนเองอยู่เสมอทั้งด้านวิชาชีพและบุคลิกภาพ','ให้เกียรตินักเรียนอย่างเท่าเทียม','ร่วมมือกับชุมชนในการจัดกิจกรรม'],ans:1,explain:'จรรยาบรรณต่อตนเองคือการพัฒนาตนเองทั้งด้านความรู้ความสามารถและบุคลิกภาพเพื่อเป็นแบบอย่างที่ดี',topic:'จรรยาบรรณ',year:2563},
+],
+prof_std: [
+  {q:'การจัดทำแผนการจัดการเรียนรู้ (Lesson Plan) ควรเริ่มต้นจากข้อใด',opts:['เลือกสื่อการสอน','กำหนดจุดประสงค์การเรียนรู้','ออกแบบกิจกรรม','เตรียมแบบทดสอบ'],ans:1,explain:'การวางแผนการสอนที่ดีต้องเริ่มจากการกำหนดจุดประสงค์/ผลลัพธ์การเรียนรู้ก่อน ตามหลัก Backward Design',topic:'แผนการสอน',year:2563},
+  {q:'การวิจัยในชั้นเรียน (Classroom Action Research) มีวัตถุประสงค์หลักคือข้อใด',opts:['เพื่อตีพิมพ์ในวารสารวิชาการ','เพื่อแก้ปัญหาและพัฒนาการเรียนการสอนในชั้นเรียนของตนเอง','เพื่อขอรับทุนวิจัยจากหน่วยงาน','เพื่อเลื่อนวิทยฐานะเท่านั้น'],ans:1,explain:'วิจัยในชั้นเรียนมุ่งแก้ปัญหาการเรียนการสอนที่ครูพบในชั้นเรียนของตนเอง',topic:'วิจัยในชั้นเรียน',year:2564},
+  {q:'"การเรียนรู้เชิงรุก" (Active Learning) หมายความว่าอย่างไร',opts:['ครูบรรยายอย่างเข้มข้น','ผู้เรียนมีส่วนร่วมในการสร้างความรู้ด้วยตนเอง','การเรียนรู้ที่เน้นการแข่งขัน','การเรียนรู้ผ่านสื่อดิจิทัลเท่านั้น'],ans:1,explain:'Active Learning คือกระบวนการที่ผู้เรียนมีบทบาทสำคัญในการสำรวจ ค้นคว้า คิด และสร้างความรู้ด้วยตนเอง',topic:'การเรียนรู้เชิงรุก',year:2565},
+  {q:'ทฤษฎีของ Piaget มีความสำคัญต่อครูอย่างไร',opts:['ช่วยให้ครูออกข้อสอบยากขึ้น','ช่วยให้ครูจัดการเรียนรู้เหมาะกับระดับพัฒนาการผู้เรียน','ช่วยให้ครูบริหารจัดการชั้นเรียน','ช่วยให้ครูประเมินผลได้แม่นยำ'],ans:1,explain:'ทฤษฎีของ Piaget ช่วยให้ครูเข้าใจระดับพัฒนาการสติปัญญาของเด็กในแต่ละช่วงอายุ',topic:'จิตวิทยาพัฒนาการ',year:2562},
+  {q:'การวัดและประเมินผลตามสภาพจริง (Authentic Assessment) เน้นสิ่งใด',opts:['การสอบมาตรฐานระดับชาติ','การแสดงความสามารถจริงในสถานการณ์จริง','การเปรียบเทียบคะแนนระหว่างนักเรียน','การสอบปรนัยที่วัดความจำ'],ans:1,explain:'Authentic Assessment เน้นการประเมินผ่านการแสดงออกจริง เช่น โครงงาน การสาธิต การนำเสนอ',topic:'การวัดผล',year:2566},
+  {q:'วPA (Performance Agreement) เน้นหลักฐานใดในการประเมินวิทยฐานะ',opts:['ผลการปฏิบัติงาน (PA) อย่างเดียว','PA + ผลลัพธ์การเรียนรู้ของผู้เรียน','PA + VDO + ผลงานทางวิชาการ','ผลงานทางวิชาการและรางวัล'],ans:1,explain:'วPA เน้นหลักฐาน 2 ส่วน คือ ผลการปฏิบัติงาน และผลลัพธ์การเรียนรู้ของผู้เรียนที่เกิดจากการสอน',topic:'วPA',year:2566},
+  {q:'ข้อใดคือความหมายของ "การประเมินเพื่อพัฒนา" (Formative Assessment)',opts:['ประเมินตัดสินผลการเรียน','ประเมินระหว่างเรียนเพื่อปรับปรุงการเรียนการสอน','ประเมินเพื่อเปรียบเทียบกับมาตรฐาน','ประเมินเพื่อรายงานต่อผู้ปกครอง'],ans:1,explain:'Formative Assessment คือการประเมินระหว่างเรียนเพื่อพัฒนาและปรับปรุงกระบวนการเรียนการสอน',topic:'การวัดผล',year:2558},
+],
+};
+
+// ===== STATE =====
+let currentUser = null, currentSubject = null, currentQuestions = [], currentQ = 0, userAnswers = [], quizStartTime = null, timerInterval = null, answered = false;
+
+// ===== AUTH =====
+async function doLogin() {
+  const u = document.getElementById('inputUser').value.trim();
+  const p = document.getElementById('inputPass').value.trim();
+  const errMsg = document.getElementById('errMsg');
+  errMsg.style.display = 'none';
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p })
+    });
+    if (!res.ok) { errMsg.style.display = 'block'; return; }
+    const user = await res.json();
+    currentUser = user;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appScreen').style.display = 'block';
+    document.getElementById('userBadge').textContent = '👤 ' + user.name;
+    if (user.role === 'admin') document.getElementById('adminTab').style.display = '';
+    await buildHome();
+    showPage('home');
+  } catch (e) { errMsg.style.display = 'block'; }
+}
+
+async function doLogout() {
+  currentUser = null;
+  clearInterval(timerInterval);
+  try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('adminTab').style.display = 'none';
+  document.getElementById('inputUser').value = '';
+  document.getElementById('inputPass').value = '';
+  document.getElementById('errMsg').style.display = 'none';
+}
+
+async function checkSession() {
+  try {
+    const res = await fetch('/api/session');
+    if (!res.ok) return;
+    const user = await res.json();
+    currentUser = user;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appScreen').style.display = 'block';
+    document.getElementById('userBadge').textContent = '👤 ' + user.name;
+    if (user.role === 'admin') document.getElementById('adminTab').style.display = '';
+    await buildHome();
+    showPage('home');
+  } catch (e) {}
+}
+
+// ===== NAV =====
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  const m = { home: 0, quiz: 1, stats: 2 };
+  if (m[id] !== undefined) { const tabs = document.querySelectorAll('.nav-tab'); if (tabs[m[id]]) tabs[m[id]].classList.add('active'); }
+  if (id === 'home') buildHome();
+  if (id === 'stats') renderStats();
+  if (id === 'admin') renderAdmin();
+}
+
+// ===== HOME =====
+async function fetchHistory() {
+  try {
+    const res = await fetch('/api/history/' + currentUser.username);
+    if (res.ok) return await res.json();
+  } catch (e) {}
+  return [];
+}
+
+async function buildHome() {
+  const hist = await fetchHistory();
+  let html = '';
+  PARTS.forEach(pt => {
+    const subs = SUBJECTS.filter(s => s.part === pt.id);
+    html += `<div class="part-label">${pt.icon} ${pt.name} <span style="font-size:11px;color:var(--accent);font-weight:400;text-transform:none;letter-spacing:0">${pt.score}</span></div><div class="subject-grid">`;
+    subs.forEach(sub => {
+      const qlen = QB[sub.id]?.length || 0;
+      const subHist = hist.filter(h => h.subjectId === sub.id);
+      const best = subHist.length ? Math.max(...subHist.map(h => h.pct)) : null;
+      const scoreHtml = best !== null ? `<span class="subject-score" style="background:${best>=70?'rgba(46,204,113,.15)':'rgba(231,76,60,.15)'};color:${best>=70?'#2ecc71':'#e74c3c'}">สูงสุด ${best}%</span>` : '';
+      const partBadge = `<span class="part-badge" style="background:${pt.bg};color:${pt.tc}">ส่วน${pt.id.replace('p','')}</span>`;
+      html += `<div class="subject-card" onclick="startQuiz('${sub.id}')">${partBadge}${scoreHtml}<div class="subject-icon">${sub.icon}</div><div class="subject-name">${sub.name}</div><div class="subject-count">${qlen} ข้อ · ย้อนหลัง 10 ปี</div></div>`;
+    });
+    html += '</div>';
+  });
+  document.getElementById('subjectContainer').innerHTML = html;
+}
+
+// ===== QUIZ =====
+function startQuiz(subjectId) {
+  const sub = SUBJECTS.find(s => s.id === subjectId);
+  const pt = PARTS.find(p => p.id === sub.part);
+  currentSubject = { ...sub, partObj: pt };
+  const pool = [...QB[subjectId]];
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  currentQuestions = pool; currentQ = 0; userAnswers = new Array(pool.length).fill(-1);
+  quizStartTime = Date.now(); answered = false;
+  clearInterval(timerInterval); timerInterval = setInterval(updateTimer, 1000);
+  showPage('quiz'); renderQuestion();
+}
+
+function updateTimer() {
+  const e = Math.floor((Date.now() - quizStartTime) / 1000);
+  const m = Math.floor(e / 60).toString().padStart(2, '0'), s = (e % 60).toString().padStart(2, '0');
+  document.getElementById('quizBadgeTimer').textContent = `⏱ ${m}:${s}`;
+}
+
+function renderQuestion() {
+  const q = currentQuestions[currentQ]; answered = userAnswers[currentQ] !== -1;
+  const total = currentQuestions.length;
+  document.getElementById('quizTitle').textContent = currentSubject.name;
+  document.getElementById('quizBadgePart').textContent = currentSubject.partObj.short;
+  document.getElementById('quizBadgeSubject').textContent = currentSubject.icon + ' ' + currentSubject.name;
+  document.getElementById('quizBadgeProgress').textContent = `ข้อ ${currentQ+1}/${total}`;
+  document.getElementById('quizProgress').style.width = ((currentQ+1) / total * 100) + '%';
+  document.getElementById('btnPrev').style.display = currentQ > 0 ? '' : 'none';
+  document.getElementById('btnNext').textContent = currentQ === total - 1 ? '📊 ส่งข้อสอบ' : 'ถัดไป ▶';
+  const L = ['ก', 'ข', 'ค', 'ง'];
+  const opts = q.opts.map((o, i) => {
+    let cls = 'option-btn';
+    if (answered) { if (i === q.ans) cls += ' correct'; else if (i === userAnswers[currentQ] && userAnswers[currentQ] !== q.ans) cls += ' wrong'; }
+    else if (i === userAnswers[currentQ]) cls += ' selected';
+    return `<button class="${cls}" onclick="selectAnswer(${i})" ${answered ? 'disabled' : ''}><span class="opt-letter">${L[i]}</span><span>${o}</span></button>`;
+  }).join('');
+  const explain = answered ? `<div class="explain-box">💡 <strong>เฉลย:</strong> ${q.explain}</div>` : '';
+  document.getElementById('quizContainer').innerHTML = `<div class="question-card"><div class="q-num">ข้อที่ ${currentQ+1} จาก ${total}</div><div class="q-tags"><span class="q-tag tag-year">📅 ปี พ.ศ. ${q.year}</span><span class="q-tag tag-topic">🏷 ${q.topic}</span><span class="q-tag tag-part">${currentSubject.partObj.short}</span></div><div class="q-text">${q.q}</div><div class="options">${opts}</div>${explain}</div>`;
+}
+
+function selectAnswer(i) { if (answered) return; userAnswers[currentQ] = i; answered = true; renderQuestion(); }
+function nextQ() { if (currentQ < currentQuestions.length - 1) { currentQ++; answered = userAnswers[currentQ] !== -1; renderQuestion(); } else finishQuiz(); }
+function prevQ() { if (currentQ > 0) { currentQ--; answered = userAnswers[currentQ] !== -1; renderQuestion(); } }
+function stopQuiz() { if (confirm('ต้องการหยุดทำข้อสอบหรือไม่?')) { clearInterval(timerInterval); showPage('home'); } }
+
+async function finishQuiz() {
+  clearInterval(timerInterval);
+  const elapsed = Math.floor((Date.now() - quizStartTime) / 1000);
+  const correct = currentQuestions.filter((q, i) => userAnswers[i] === q.ans).length;
+  const total = currentQuestions.length; const pct = Math.round(correct / total * 100);
+  const entry = {
+    subjectId: currentSubject.id, subjectName: currentSubject.name, icon: currentSubject.icon,
+    partShort: currentSubject.partObj.short, partId: currentSubject.part,
+    correct, total, pct, elapsed,
+    date: new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }),
+    answers: [...userAnswers]
+  };
+  try {
+    await fetch('/api/history/' + currentUser.username, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry)
+    });
+  } catch (e) {}
+  const g = pct >= 80 ? { l:'ดีเยี่ยม', c:'grade-a' } : pct >= 70 ? { l:'ดี', c:'grade-b' } : pct >= 60 ? { l:'พอใช้', c:'grade-c' } : { l:'ต้องปรับปรุง', c:'grade-d' };
+  const pass = pct >= 60;
+  const mm = Math.floor(elapsed / 60).toString().padStart(2, '0'), ss = (elapsed % 60).toString().padStart(2, '0');
+  document.getElementById('resultCard').innerHTML = `<div class="result-score ${pass?'pass':'fail'}">${pct}%</div><div class="result-label">${correct} ข้อถูก จาก ${total} ข้อ · ${currentSubject.name}</div><div class="result-grade ${g.c}">${g.l}</div>`;
+  document.getElementById('resultStats').innerHTML = `<div class="stat-card"><div class="stat-num" style="color:var(--green)">${correct}</div><div class="stat-label">ตอบถูก</div></div><div class="stat-card"><div class="stat-num" style="color:var(--red)">${total-correct}</div><div class="stat-label">ตอบผิด</div></div><div class="stat-card"><div class="stat-num" style="color:var(--accent)">${mm}:${ss}</div><div class="stat-label">เวลาที่ใช้</div></div>`;
+  const L = ['ก', 'ข', 'ค', 'ง'];
+  document.getElementById('reviewList').innerHTML = currentQuestions.map((q, i) => {
+    const ua = userAnswers[i]; const ok = ua === q.ans;
+    return `<div class="review-item ${ok?'correct-item':'wrong-item'}"><div class="q-num">ข้อ ${i+1} · ${q.topic} · ปี ${q.year} ${ok?'✅':'❌'}</div><div class="review-q">${q.q}</div><div class="review-ans">${ua!==-1?`<span class="your-ans">คำตอบคุณ: ${L[ua]}. ${q.opts[ua]}</span>`:'<span class="your-ans">ไม่ได้ตอบ</span>'}<span class="right-ans">เฉลย: ${L[q.ans]}. ${q.opts[q.ans]}</span></div><div class="explain-box" style="margin-top:8px">💡 ${q.explain}</div></div>`;
+  }).join('');
+  showPage('result');
+  buildHome();
+}
+
+function retryQuiz() { startQuiz(currentSubject.id); }
+
+// ===== STATS =====
+async function renderStats() {
+  const hist = await fetchHistory();
+  const totalTests = hist.length;
+  const avg = totalTests ? Math.round(hist.reduce((a, h) => a + h.pct, 0) / totalTests) : 0;
+  const best = totalTests ? Math.max(...hist.map(h => h.pct)) : 0;
+  const totalQ = hist.reduce((a, h) => a + h.total, 0);
+  const totalCorrect = hist.reduce((a, h) => a + h.correct, 0);
+  document.getElementById('statsOverall').innerHTML = `<div class="stat-big"><div class="num" style="color:var(--gold)">${totalTests}</div><div class="lbl">ครั้งที่ทดสอบ</div></div><div class="stat-big"><div class="num" style="color:var(--accent)">${avg}%</div><div class="lbl">คะแนนเฉลี่ย</div></div><div class="stat-big"><div class="num" style="color:var(--green)">${best}%</div><div class="lbl">คะแนนสูงสุด</div></div><div class="stat-big"><div class="num" style="color:var(--muted)">${totalQ}</div><div class="lbl">ข้อทั้งหมด</div></div><div class="stat-big"><div class="num" style="color:var(--purple)">${totalCorrect}</div><div class="lbl">ตอบถูกรวม</div></div>`;
+  const ptColor = { p1:'#4fc3f7', p2:'#f0c040', p3:'#9b59b6' };
+  document.getElementById('barChart').innerHTML = SUBJECTS.map(s => {
+    const tests = hist.filter(h => h.subjectId === s.id);
+    const a = tests.length ? Math.round(tests.reduce((x, h) => x + h.pct, 0) / tests.length) : null;
+    if (a === null) return `<div class="bar-row"><div class="bar-label">${s.icon} ${s.name}</div><div class="bar-bg"><div class="bar-fill" style="width:0%"></div></div><div class="bar-val" style="color:var(--muted)">—</div></div>`;
+    return `<div class="bar-row"><div class="bar-label">${s.icon} ${s.name}</div><div class="bar-bg"><div class="bar-fill" style="width:${a}%"></div></div><div class="bar-val">${a}%</div></div>`;
+  }).join('');
+  if (!hist.length) { document.getElementById('historyBody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">ยังไม่มีประวัติการทดสอบ</td></tr>'; return; }
+  document.getElementById('historyBody').innerHTML = hist.map((h, i) => {
+    const c = h.pct >= 80 ? 'var(--green)' : h.pct >= 70 ? 'var(--accent)' : h.pct >= 60 ? 'var(--gold)' : 'var(--red)';
+    const mm = Math.floor(h.elapsed / 60).toString().padStart(2, '0'), ss = (h.elapsed % 60).toString().padStart(2, '0');
+    return `<tr><td style="color:var(--muted)">${i+1}</td><td style="color:${ptColor[h.partId]||'var(--muted)'};font-size:12px">${h.partShort||'—'}</td><td>${h.icon} ${h.subjectName}</td><td><span class="score-pill" style="background:${c}22;color:${c}">${h.pct}%</span></td><td>${h.correct}/${h.total}</td><td>${mm}:${ss}</td><td style="color:var(--muted);font-size:12px">${h.date}</td></tr>`;
+  }).join('');
+}
+
+// ===== ADMIN =====
+async function renderAdmin() {
+  try {
+    const res = await fetch('/api/users');
+    if (!res.ok) return;
+    const users = await res.json();
+    document.getElementById('userList').innerHTML = users.map(u =>
+      `<div class="user-item"><div class="user-info"><div class="uname">${u.role==='admin'?'👑':'👤'} ${u.name} <span style="color:var(--muted);font-weight:400;font-size:13px">(${u.username})</span></div><div class="urole">${u.role==='admin'?'ผู้ดูแลระบบ':'ผู้สมัครสอบ'}</div></div>${u.username!==currentUser.username?`<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.username}','${u.name.replace(/'/g,'')}')">ลบ</button>`:'<span style="font-size:12px;color:var(--muted)">บัญชีของคุณ</span>'}</div>`
+    ).join('');
+  } catch (e) {}
+}
+
+async function addUser() {
+  const u = document.getElementById('newUsername').value.trim();
+  const p = document.getElementById('newPassword').value.trim();
+  const n = document.getElementById('newName').value.trim();
+  if (!u || !p || !n) { alert('กรุณากรอกข้อมูลให้ครบทุกช่อง'); return; }
+  try {
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p, name: n })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('❌ ' + data.error); return; }
+    document.getElementById('newUsername').value = '';
+    document.getElementById('newPassword').value = '';
+    document.getElementById('newName').value = '';
+    alert('✅ เพิ่มผู้ใช้ ' + n + ' เรียบร้อยแล้ว');
+    renderAdmin();
+  } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
+}
+
+async function deleteUser(username, name) {
+  if (!confirm('ต้องการลบผู้ใช้ ' + name + ' หรือไม่?')) return;
+  try {
+    const res = await fetch('/api/users/' + username, { method: 'DELETE' });
+    if (res.ok) { renderAdmin(); }
+    else { const d = await res.json(); alert('❌ ' + d.error); }
+  } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
+}
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', checkSession);
+document.getElementById('inputPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('inputUser').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
