@@ -737,16 +737,75 @@ async function doLogin() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: u, password: p })
     });
-    if (!res.ok) { errMsg.style.display = 'block'; return; }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      errMsg.textContent = data.error || '❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+      errMsg.style.display = 'block';
+      return;
+    }
     const user = await res.json();
     currentUser = user;
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appScreen').style.display = 'block';
     document.getElementById('userBadge').textContent = '👤 ' + user.name;
-    if (user.role === 'admin') document.getElementById('adminTab').style.display = '';
+    if (user.role === 'admin') { document.getElementById('adminTab').style.display = ''; renderPendingUsers(); }
     await buildHome();
     showPage('home');
-  } catch (e) { errMsg.style.display = 'block'; }
+  } catch (e) { errMsg.textContent = '❌ เกิดข้อผิดพลาด กรุณาลองใหม่'; errMsg.style.display = 'block'; }
+}
+
+function showRegisterScreen() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('registerScreen').style.display = 'flex';
+  document.getElementById('regErrMsg').style.display = 'none';
+  document.getElementById('regSuccessMsg').style.display = 'none';
+}
+
+function backToLogin() {
+  document.getElementById('registerScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('regUser').value = '';
+  document.getElementById('regPass').value = '';
+  document.getElementById('regPassConfirm').value = '';
+  document.getElementById('regName').value = '';
+}
+
+async function doRegister() {
+  const username = document.getElementById('regUser').value.trim();
+  const password = document.getElementById('regPass').value.trim();
+  const confirmPassword = document.getElementById('regPassConfirm').value.trim();
+  const name = document.getElementById('regName').value.trim();
+  const errMsg = document.getElementById('regErrMsg');
+  const successMsg = document.getElementById('regSuccessMsg');
+  errMsg.style.display = 'none';
+  successMsg.style.display = 'none';
+  if (!username || !password || !confirmPassword || !name) {
+    errMsg.textContent = 'กรุณากรอกข้อมูลให้ครบทุกช่อง';
+    errMsg.style.display = 'block';
+    return;
+  }
+  if (password.length < 6) {
+    errMsg.textContent = 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร';
+    errMsg.style.display = 'block';
+    return;
+  }
+  if (password !== confirmPassword) {
+    errMsg.textContent = 'รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน';
+    errMsg.style.display = 'block';
+    return;
+  }
+  try {
+    const res = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, confirmPassword, name })
+    });
+    const data = await res.json();
+    if (!res.ok) { errMsg.textContent = data.error || 'เกิดข้อผิดพลาด กรุณาลองใหม่'; errMsg.style.display = 'block'; return; }
+    successMsg.textContent = 'สมัครสมาชิกสำเร็จ กรุณารอแอดมินอนุมัติบัญชีก่อนเข้าใช้งาน';
+    successMsg.style.display = 'block';
+    setTimeout(backToLogin, 2000);
+  } catch (e) { errMsg.textContent = 'เกิดข้อผิดพลาด กรุณาลองใหม่'; errMsg.style.display = 'block'; }
 }
 
 async function doLogout() {
@@ -770,7 +829,7 @@ async function checkSession() {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appScreen').style.display = 'block';
     document.getElementById('userBadge').textContent = '👤 ' + user.name;
-    if (user.role === 'admin') document.getElementById('adminTab').style.display = '';
+    if (user.role === 'admin') { document.getElementById('adminTab').style.display = ''; renderPendingUsers(); }
     await buildHome();
     showPage('home');
   } catch (e) {}
@@ -921,15 +980,72 @@ async function renderStats() {
 }
 
 // ===== ADMIN =====
+const STATUS_LABEL = { approved: '🟢 อนุมัติแล้ว', pending: '🟡 รออนุมัติ', rejected: '🔴 ถูกปฏิเสธ' };
+
 async function renderAdmin() {
+  await renderPendingUsers();
   try {
     const res = await fetch('/api/users');
     if (!res.ok) return;
     const users = await res.json();
-    document.getElementById('userList').innerHTML = users.map(u =>
-      `<div class="user-item"><div class="user-info"><div class="uname">${u.role==='admin'?'👑':'👤'} ${u.name} <span style="color:var(--muted);font-weight:400;font-size:13px">(${u.username})</span></div><div class="urole">${u.role==='admin'?'ผู้ดูแลระบบ':'ผู้สมัครสอบ'}</div></div>${u.username!==currentUser.username?`<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.username}','${u.name.replace(/'/g,'')}')">ลบ</button>`:'<span style="font-size:12px;color:var(--muted)">บัญชีของคุณ</span>'}</div>`
-    ).join('');
+    document.getElementById('userList').innerHTML = users.map(u => {
+      const statusBadge = u.role === 'admin' ? '' : `<span class="status-badge status-${u.status}">${STATUS_LABEL[u.status] || u.status}</span>`;
+      const actions = [];
+      if (u.username !== currentUser.username) {
+        if (u.role !== 'admin' && u.status === 'approved') actions.push(`<button class="btn btn-danger btn-sm" onclick="setUserStatus('${u.username}','${u.name.replace(/'/g,'')}','rejected')">ระงับสิทธิ์</button>`);
+        if (u.role !== 'admin' && u.status === 'rejected') actions.push(`<button class="btn btn-success btn-sm" onclick="setUserStatus('${u.username}','${u.name.replace(/'/g,'')}','approved')">เปิดสิทธิ์</button>`);
+        actions.push(`<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.username}','${u.name.replace(/'/g,'')}')">ลบ</button>`);
+      } else {
+        actions.push('<span style="font-size:12px;color:var(--muted)">บัญชีของคุณ</span>');
+      }
+      return `<div class="user-item"><div class="user-info"><div class="uname">${u.role==='admin'?'👑':'👤'} ${u.name} <span style="color:var(--muted);font-weight:400;font-size:13px">(${u.username})</span>${statusBadge}</div><div class="urole">${u.role==='admin'?'ผู้ดูแลระบบ':'ผู้สมัครสอบ'}</div></div><div class="pending-actions">${actions.join('')}</div></div>`;
+    }).join('');
   } catch (e) {}
+}
+
+async function renderPendingUsers() {
+  try {
+    const res = await fetch('/api/users/pending');
+    if (!res.ok) return;
+    const pending = await res.json();
+    const badge = document.getElementById('pendingBadge');
+    if (pending.length) { badge.textContent = pending.length; badge.style.display = ''; }
+    else { badge.style.display = 'none'; }
+    const list = document.getElementById('pendingUserList');
+    if (!pending.length) { list.innerHTML = '<div class="empty-note">ไม่มีคำขอสมัครสมาชิกใหม่</div>'; return; }
+    list.innerHTML = pending.map(u => {
+      const date = u.registeredAt ? new Date(u.registeredAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+      return `<div class="pending-item"><div class="user-info"><div class="uname">👤 ${u.name} <span style="color:var(--muted);font-weight:400;font-size:13px">(${u.username})</span></div><div class="urole">สมัครเมื่อ ${date}</div></div><div class="pending-actions"><button class="btn btn-success btn-sm" onclick="approveUser('${u.username}','${u.name.replace(/'/g,'')}')">✅ อนุมัติ</button><button class="btn btn-danger btn-sm" onclick="rejectUser('${u.username}','${u.name.replace(/'/g,'')}')">❌ ปฏิเสธ</button></div></div>`;
+    }).join('');
+  } catch (e) {}
+}
+
+async function approveUser(username, name) {
+  try {
+    const res = await fetch(`/api/users/${username}/approve`, { method: 'POST' });
+    if (res.ok) { renderAdmin(); }
+    else { const d = await res.json(); alert('❌ ' + d.error); }
+  } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
+}
+
+async function rejectUser(username, name) {
+  if (!confirm('ต้องการปฏิเสธคำขอสมัครสมาชิกของ ' + name + ' หรือไม่?')) return;
+  try {
+    const res = await fetch(`/api/users/${username}/reject`, { method: 'POST' });
+    if (res.ok) { renderAdmin(); }
+    else { const d = await res.json(); alert('❌ ' + d.error); }
+  } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
+}
+
+async function setUserStatus(username, name, status) {
+  const verb = status === 'approved' ? 'เปิดสิทธิ์ใช้งาน' : 'ระงับสิทธิ์ใช้งาน';
+  if (!confirm(`ต้องการ${verb}ของ ${name} หรือไม่?`)) return;
+  const endpoint = status === 'approved' ? 'approve' : 'reject';
+  try {
+    const res = await fetch(`/api/users/${username}/${endpoint}`, { method: 'POST' });
+    if (res.ok) { renderAdmin(); }
+    else { const d = await res.json(); alert('❌ ' + d.error); }
+  } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
 }
 
 async function addUser() {
@@ -966,3 +1082,4 @@ async function deleteUser(username, name) {
 document.addEventListener('DOMContentLoaded', checkSession);
 document.getElementById('inputPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 document.getElementById('inputUser').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('regPassConfirm').addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(); });

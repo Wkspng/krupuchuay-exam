@@ -13,9 +13,9 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 if (!fs.existsSync(USERS_FILE)) {
   fs.writeFileSync(USERS_FILE, JSON.stringify([
-    { username: 'admin', password: 'admin1234', name: 'ผู้ดูแลระบบ', role: 'admin' },
-    { username: 'student01', password: 'thammasat01', name: 'นางสาว สมหญิง ใจดี', role: 'user' },
-    { username: 'student02', password: 'thammasat02', name: 'นาย วิชัย มุ่งดี', role: 'user' },
+    { username: 'admin', password: 'admin1234', name: 'ผู้ดูแลระบบ', role: 'admin', status: 'approved', registeredAt: new Date().toISOString() },
+    { username: 'student01', password: 'thammasat01', name: 'นางสาว สมหญิง ใจดี', role: 'user', status: 'approved', registeredAt: new Date().toISOString() },
+    { username: 'student02', password: 'thammasat02', name: 'นาย วิชัย มุ่งดี', role: 'user', status: 'approved', registeredAt: new Date().toISOString() },
   ], null, 2));
 }
 
@@ -23,7 +23,16 @@ if (!fs.existsSync(HISTORY_FILE)) {
   fs.writeFileSync(HISTORY_FILE, JSON.stringify({}, null, 2));
 }
 
-function readUsers() { return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')); }
+// บัญชีที่มีอยู่ก่อนฟีเจอร์อนุมัติสมาชิกจะไม่มี status/registeredAt มาก่อน ให้ถือว่า approved
+function normalizeUser(u) {
+  return {
+    ...u,
+    role: u.role || 'user',
+    status: u.status || (u.role === 'admin' ? 'approved' : 'approved'),
+    registeredAt: u.registeredAt || null,
+  };
+}
+function readUsers() { return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')).map(normalizeUser); }
 function writeUsers(u) { fs.writeFileSync(USERS_FILE, JSON.stringify(u, null, 2)); }
 function readHistory() { return JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8')); }
 function writeHistory(h) { fs.writeFileSync(HISTORY_FILE, JSON.stringify(h, null, 2)); }
@@ -61,8 +70,23 @@ app.post('/api/login', (req, res) => {
   const users = readUsers();
   const user = users.find(u => u.username === username && u.password === password);
   if (!user) return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+  if (user.status === 'pending') return res.status(403).json({ error: '⏳ บัญชีของคุณยังไม่ได้รับการอนุมัติจากแอดมิน กรุณารอการอนุมัติ' });
+  if (user.status === 'rejected') return res.status(403).json({ error: '❌ บัญชีของคุณไม่ได้รับการอนุมัติ กรุณาติดต่อแอดมิน' });
   req.session.user = { username: user.username, name: user.name, role: user.role };
   res.json({ username: user.username, name: user.name, role: user.role });
+});
+
+// POST /api/register
+app.post('/api/register', (req, res) => {
+  const { username, password, confirmPassword, name } = req.body;
+  if (!username || !password || !confirmPassword || !name) return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบทุกช่อง' });
+  if (password.length < 6) return res.status(400).json({ error: 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร' });
+  if (password !== confirmPassword) return res.status(400).json({ error: 'รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน' });
+  const users = readUsers();
+  if (users.find(u => u.username === username)) return res.status(409).json({ error: 'Username นี้มีอยู่แล้ว' });
+  users.push({ username, password, name, role: 'user', status: 'pending', registeredAt: new Date().toISOString() });
+  writeUsers(users);
+  res.json({ success: true });
 });
 
 // POST /api/logout
@@ -95,7 +119,15 @@ app.post('/api/history/:username', requireAuth, (req, res) => {
 
 // GET /api/users (admin)
 app.get('/api/users', requireAdmin, (req, res) => {
-  const users = readUsers().map(u => ({ username: u.username, name: u.name, role: u.role }));
+  const users = readUsers().map(u => ({ username: u.username, name: u.name, role: u.role, status: u.status, registeredAt: u.registeredAt }));
+  res.json(users);
+});
+
+// GET /api/users/pending (admin)
+app.get('/api/users/pending', requireAdmin, (req, res) => {
+  const users = readUsers()
+    .filter(u => u.status === 'pending')
+    .map(u => ({ username: u.username, name: u.name, registeredAt: u.registeredAt }));
   res.json(users);
 });
 
@@ -105,7 +137,27 @@ app.post('/api/users', requireAdmin, (req, res) => {
   if (!username || !password || !name) return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
   const users = readUsers();
   if (users.find(u => u.username === username)) return res.status(409).json({ error: 'Username นี้มีอยู่แล้ว' });
-  users.push({ username, password, name, role: 'user' });
+  users.push({ username, password, name, role: 'user', status: 'approved', registeredAt: new Date().toISOString() });
+  writeUsers(users);
+  res.json({ success: true });
+});
+
+// POST /api/users/:username/approve (admin)
+app.post('/api/users/:username/approve', requireAdmin, (req, res) => {
+  const users = readUsers();
+  const user = users.find(u => u.username === req.params.username);
+  if (!user) return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+  user.status = 'approved';
+  writeUsers(users);
+  res.json({ success: true });
+});
+
+// POST /api/users/:username/reject (admin)
+app.post('/api/users/:username/reject', requireAdmin, (req, res) => {
+  const users = readUsers();
+  const user = users.find(u => u.username === req.params.username);
+  if (!user) return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+  user.status = 'rejected';
   writeUsers(users);
   res.json({ success: true });
 });

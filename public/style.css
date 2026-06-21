@@ -59,6 +59,21 @@ body {
 .btn-login:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(240,192,64,.35); }
 
 .error-msg { color: var(--red); font-size: 13px; text-align: center; margin-top: 12px; display: none; }
+.success-msg { color: var(--green); font-size: 13px; text-align: center; margin-top: 12px; display: none; }
+.btn-register-link { width: 100%; padding: 10px; background: transparent; border: none; color: var(--accent); font-family: 'Sarabun', sans-serif; font-size: 14px; cursor: pointer; margin-top: 10px; text-align: center; }
+.btn-register-link:hover { text-decoration: underline; }
+
+.tab-badge { display: inline-block; background: var(--red); color: #fff; font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; line-height: 18px; border-radius: 9px; text-align: center; margin-left: 6px; padding: 0 4px; }
+
+.status-badge { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 10px; margin-left: 8px; }
+.status-approved { background: rgba(46,204,113,.15); color: var(--green); }
+.status-pending { background: rgba(240,192,64,.15); color: var(--gold); }
+.status-rejected { background: rgba(231,76,60,.15); color: var(--red); }
+
+.pending-item { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,.04); flex-wrap: wrap; gap: 10px; }
+.pending-item:last-child { border-bottom: none; }
+.pending-actions { display: flex; gap: 8px; }
+.empty-note { padding: 20px; text-align: center; color: var(--muted); font-size: 14px; }
 
 #appScreen { display: none; }
 
@@ -127,6 +142,8 @@ body {
 .btn-secondary { background: var(--navy); border: 1px solid var(--border); color: var(--text); }
 .btn-secondary:hover { border-color: var(--gold); }
 .btn-danger { background: rgba(231,76,60,.1); border: 1px solid rgba(231,76,60,.3); color: var(--red); }
+.btn-success { background: rgba(46,204,113,.1); border: 1px solid rgba(46,204,113,.3); color: var(--green); }
+.btn-success:hover { background: rgba(46,204,113,.18); }
 
 .result-hero { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 36px; text-align: center; margin-bottom: 20px; }
 .result-score { font-family: 'Prompt', sans-serif; font-size: 80px; font-weight: 800; line-height: 1; }

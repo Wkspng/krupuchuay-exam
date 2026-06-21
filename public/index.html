@@ -27,7 +27,38 @@
       <input type="password" id="inputPass" placeholder="กรอก Password" autocomplete="current-password">
     </div>
     <button class="btn-login" onclick="doLogin()">เข้าสู่ระบบ</button>
-    <p class="error-msg" id="errMsg">❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</p>
+    <button class="btn-register-link" onclick="showRegisterScreen()">สมัครสมาชิก</button>
+    <p class="error-msg" id="errMsg"></p>
+  </div>
+</div>
+
+<div id="registerScreen" style="display:none">
+  <div class="login-box">
+    <div class="login-logo">
+      <span class="crown">📝</span>
+      <h1>สมัครสมาชิก</h1>
+      <p>กรอกข้อมูลเพื่อสมัครเข้าใช้งานระบบ</p>
+    </div>
+    <div class="form-group">
+      <label>ชื่อผู้ใช้งาน (Username)</label>
+      <input type="text" id="regUser" placeholder="กรอก Username" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>รหัสผ่าน (Password)</label>
+      <input type="password" id="regPass" placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="new-password">
+    </div>
+    <div class="form-group">
+      <label>ยืนยันรหัสผ่าน (Confirm Password)</label>
+      <input type="password" id="regPassConfirm" placeholder="กรอกรหัสผ่านอีกครั้ง" autocomplete="new-password">
+    </div>
+    <div class="form-group">
+      <label>ชื่อ-นามสกุล</label>
+      <input type="text" id="regName" placeholder="กรอกชื่อ-นามสกุล">
+    </div>
+    <button class="btn-login" onclick="doRegister()">สมัครสมาชิก</button>
+    <button class="btn-register-link" onclick="backToLogin()">◀ กลับไปหน้าเข้าสู่ระบบ</button>
+    <p class="error-msg" id="regErrMsg"></p>
+    <p class="success-msg" id="regSuccessMsg"></p>
   </div>
 </div>
 
@@ -43,7 +74,7 @@
     <button class="nav-tab active" onclick="showPage('home')">🏠 หน้าหลัก</button>
     <button class="nav-tab" onclick="showPage('quiz')">📝 ทำข้อสอบ</button>
     <button class="nav-tab" onclick="showPage('stats')">📊 สถิติ</button>
-    <button class="nav-tab" id="adminTab" onclick="showPage('admin')" style="display:none">⚙️ จัดการ</button>
+    <button class="nav-tab" id="adminTab" onclick="showPage('admin')" style="display:none">⚙️ จัดการ<span class="tab-badge" id="pendingBadge" style="display:none">0</span></button>
   </div>
 
   <div class="page active" id="page-home">
@@ -101,6 +132,9 @@
   <div class="page" id="page-admin">
     <p class="page-title">⚙️ จัดการผู้ใช้งาน</p>
     <div class="admin-info">⚠️ หน้านี้สำหรับผู้ดูแลระบบเท่านั้น · ผู้ดูแลเป็นผู้กำหนด Username และ Password ให้ผู้สมัครสอบทุกคน</div>
+    <p class="page-title" style="font-size:17px;margin-bottom:12px;">🔔 คำขอสมัครสมาชิกที่รออนุมัติ</p>
+    <div class="user-list" id="pendingUserList" style="margin-bottom:24px"></div>
+    <p class="page-title" style="font-size:17px;margin-bottom:12px;">รายชื่อผู้ใช้ทั้งหมด</p>
     <div class="user-list" id="userList"></div>
     <p class="page-title" style="font-size:17px;margin:20px 0 12px;">➕ เพิ่มผู้ใช้ใหม่</p>
     <div class="add-user-form">
