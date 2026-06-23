@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "ระบบทดสอบข้อสอบครูผู้ช่วย ภาค ก.",
   "main": "server.js",
+  "engines": {
+    "node": ">=20.0.0 <21.0.0"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
