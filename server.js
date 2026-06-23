@@ -179,7 +179,7 @@ async function startServer() {
     validateRuntimeConfiguration();
     const app = createApp();
     await connectDB();
-    app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+    app.listen(PORT, '0.0.0.0', () => console.log(`Server listening on port ${PORT}`));
   } catch (error) {
     const safeMessage = ['MONGODB_URI is required', 'JWT_SECRET is required in production', 'SESSION_SECRET is required in production', 'CORS_ORIGIN is required in production', 'CORS_ORIGIN must not contain a wildcard origin'].includes(error.message)
       ? error.message
