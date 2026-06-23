@@ -223,13 +223,10 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text);min
 </div>
 
 <script>
-// ===== USERS =====
-let USERS = JSON.parse(localStorage.getItem('kp_users3')||'null') || [
-  {username:'admin',password:'admin1234',name:'ผู้ดูแลระบบ',role:'admin'},
-  {username:'student01',password:'thammasat01',name:'นางสาว สมหญิง ใจดี',role:'user'},
-  {username:'student02',password:'thammasat02',name:'นาย วิชัย มุ่งดี',role:'user'},
-];
-function saveUsers(){localStorage.setItem('kp_users3',JSON.stringify(USERS));}
+// This standalone legacy preview is not an authentication surface. Use the server
+// application in /public so credentials are handled by the bcrypt/JWT API.
+let USERS = [];
+function saveUsers(){}
 let HISTORY = JSON.parse(localStorage.getItem('kp_history3')||'{}');
 function saveHistory(){localStorage.setItem('kp_history3',JSON.stringify(HISTORY));}
 
@@ -356,17 +353,9 @@ prof_std:[
 let currentUser=null,currentSubject=null,currentQuestions=[],currentQ=0,userAnswers=[],quizStartTime=null,timerInterval=null,answered=false;
 
 function doLogin(){
-  const u=document.getElementById('inputUser').value.trim();
-  const p=document.getElementById('inputPass').value.trim();
-  const found=USERS.find(x=>x.username===u&&x.password===p);
-  if(found){
-    currentUser=found;
-    document.getElementById('loginScreen').style.display='none';
-    document.getElementById('appScreen').style.display='block';
-    document.getElementById('userBadge').textContent='👤 '+found.name;
-    if(found.role==='admin') document.getElementById('adminTab').style.display='';
-    buildHome(); showPage('home');
-  } else { document.getElementById('errMsg').style.display='block'; }
+  const error=document.getElementById('errMsg');
+  error.textContent='ไฟล์ตัวอย่างนี้ไม่รองรับการเข้าสู่ระบบแล้ว กรุณาเปิดแอปผ่าน server ที่กำหนด';
+  error.style.display='block';
 }
 document.getElementById('inputPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 document.getElementById('inputUser').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
@@ -503,20 +492,13 @@ function renderStats(){
 
 // ===== ADMIN =====
 function renderAdmin(){
-  document.getElementById('userList').innerHTML=USERS.map((u,i)=>`<div class="user-item"><div class="user-info"><div class="uname">${u.role==='admin'?'👑':'👤'} ${u.name} <span style="color:var(--muted);font-weight:400;font-size:13px">(${u.username})</span></div><div class="urole">${u.role==='admin'?'ผู้ดูแลระบบ':'ผู้สมัครสอบ'}</div></div>${u.username!==currentUser.username?`<button class="btn btn-danger btn-sm" onclick="deleteUser(${i})">ลบ</button>`:'<span style="font-size:12px;color:var(--muted)">บัญชีของคุณ</span>'}</div>`).join('');
+  document.getElementById('userList').innerHTML='<div class="empty-note">จัดการผู้ใช้ผ่านแอปที่เชื่อมต่อ server เท่านั้น</div>';
 }
 function addUser(){
-  const u=document.getElementById('newUsername').value.trim();
-  const p=document.getElementById('newPassword').value.trim();
-  const n=document.getElementById('newName').value.trim();
-  if(!u||!p||!n){alert('กรุณากรอกข้อมูลให้ครบทุกช่อง');return;}
-  if(USERS.find(x=>x.username===u)){alert('❌ Username นี้มีอยู่แล้ว');return;}
-  USERS.push({username:u,password:p,name:n,role:'user'}); saveUsers(); renderAdmin();
-  document.getElementById('newUsername').value=''; document.getElementById('newPassword').value=''; document.getElementById('newName').value='';
-  alert('✅ เพิ่มผู้ใช้ '+n+' เรียบร้อยแล้ว');
+  alert('กรุณาใช้หน้า Admin ของแอปที่เชื่อมต่อ server เพื่อจัดการผู้ใช้');
 }
 function deleteUser(i){
-  if(confirm('ต้องการลบผู้ใช้ '+USERS[i].name+' หรือไม่?')){USERS.splice(i,1);saveUsers();renderAdmin();}
+  alert('กรุณาใช้หน้า Admin ของแอปที่เชื่อมต่อ server เพื่อจัดการผู้ใช้');
 }
 </script>
 </body>

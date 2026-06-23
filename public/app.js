@@ -945,32 +945,45 @@ prof_std: [
 };
 
 // ===== STATE =====
-let currentUser = null, currentSubject = null, currentQuestions = [], currentQ = 0, userAnswers = [], quizStartTime = null, timerInterval = null, answered = false;
+let currentUser = null, currentSubject = null, currentQuestions = [], currentQ = 0, userAnswers = [], quizStartTime = null, timerInterval = null, answered = false, mongoQuizCategories = [], finishingQuiz = false;
+
+function jwtHeaders() {
+  const token = localStorage.getItem('authToken');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 // ===== AUTH =====
 async function doLogin() {
-  const u = document.getElementById('inputUser').value.trim();
-  const p = document.getElementById('inputPass').value.trim();
+  const email = document.getElementById('inputUser').value.trim();
+  const password = document.getElementById('inputPass').value;
   const errMsg = document.getElementById('errMsg');
   errMsg.style.display = 'none';
   try {
-    const res = await fetch('/api/login', {
+    const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: u, password: p })
+      body: JSON.stringify({ email, password })
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      errMsg.textContent = data.error || '❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+      errMsg.textContent = data.error || '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง';
       errMsg.style.display = 'block';
       return;
     }
-    const user = await res.json();
+    const { token, user } = await res.json();
+    localStorage.setItem('authToken', token);
+    localStorage.setItem('authUser', JSON.stringify(user));
     currentUser = user;
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appScreen').style.display = 'block';
     document.getElementById('userBadge').textContent = '👤 ' + user.name;
-    if (user.role === 'admin') { document.getElementById('adminTab').style.display = ''; renderPendingUsers(); }
+    document.getElementById('examSetsTab').style.display = '';
+    if (user.role === 'admin') {
+      document.getElementById('adminTab').style.display = '';
+      document.getElementById('questionBankTab').style.display = '';
+      document.getElementById('examSetAdminTab').style.display = '';
+      renderPendingUsers();
+    }
     await buildHome();
     showPage('home');
   } catch (e) { errMsg.textContent = '❌ เกิดข้อผิดพลาด กรุณาลองใหม่'; errMsg.style.display = 'block'; }
@@ -993,15 +1006,15 @@ function backToLogin() {
 }
 
 async function doRegister() {
-  const username = document.getElementById('regUser').value.trim();
-  const password = document.getElementById('regPass').value.trim();
-  const confirmPassword = document.getElementById('regPassConfirm').value.trim();
+  const email = document.getElementById('regUser').value.trim();
+  const password = document.getElementById('regPass').value;
+  const confirmPassword = document.getElementById('regPassConfirm').value;
   const name = document.getElementById('regName').value.trim();
   const errMsg = document.getElementById('regErrMsg');
   const successMsg = document.getElementById('regSuccessMsg');
   errMsg.style.display = 'none';
   successMsg.style.display = 'none';
-  if (!username || !password || !confirmPassword || !name) {
+  if (!email || !password || !confirmPassword || !name) {
     errMsg.textContent = 'กรุณากรอกข้อมูลให้ครบทุกช่อง';
     errMsg.style.display = 'block';
     return;
@@ -1017,10 +1030,10 @@ async function doRegister() {
     return;
   }
   try {
-    const res = await fetch('/api/register', {
+    const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, confirmPassword, name })
+      body: JSON.stringify({ email, password, name })
     });
     const data = await res.json();
     if (!res.ok) { errMsg.textContent = data.error || 'เกิดข้อผิดพลาด กรุณาลองใหม่'; errMsg.style.display = 'block'; return; }
@@ -1033,10 +1046,15 @@ async function doRegister() {
 async function doLogout() {
   currentUser = null;
   clearInterval(timerInterval);
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('authUser');
   try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('examSetsTab').style.display = 'none';
   document.getElementById('adminTab').style.display = 'none';
+  document.getElementById('questionBankTab').style.display = 'none';
+  document.getElementById('examSetAdminTab').style.display = 'none';
   document.getElementById('inputUser').value = '';
   document.getElementById('inputPass').value = '';
   document.getElementById('errMsg').style.display = 'none';
@@ -1051,7 +1069,13 @@ async function checkSession() {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appScreen').style.display = 'block';
     document.getElementById('userBadge').textContent = '👤 ' + user.name;
-    if (user.role === 'admin') { document.getElementById('adminTab').style.display = ''; renderPendingUsers(); }
+    document.getElementById('examSetsTab').style.display = '';
+    if (user.role === 'admin') {
+      document.getElementById('adminTab').style.display = '';
+      document.getElementById('questionBankTab').style.display = '';
+      document.getElementById('examSetAdminTab').style.display = '';
+      renderPendingUsers();
+    }
     await buildHome();
     showPage('home');
   } catch (e) {}
@@ -1059,14 +1083,25 @@ async function checkSession() {
 
 // ===== NAV =====
 function showPage(id) {
+  if (['question-bank', 'exam-set-admin'].includes(id) && currentUser?.role !== 'admin') {
+    alert('ไม่มีสิทธิ์เข้าถึง');
+    return;
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('page-' + id).classList.add('active');
   const m = { home: 0, quiz: 1, stats: 2 };
   if (m[id] !== undefined) { const tabs = document.querySelectorAll('.nav-tab'); if (tabs[m[id]]) tabs[m[id]].classList.add('active'); }
+  if (id === 'admin') document.getElementById('adminTab').classList.add('active');
+  if (id === 'question-bank') document.getElementById('questionBankTab').classList.add('active');
+  if (id === 'exam-sets') document.getElementById('examSetsTab').classList.add('active');
+  if (id === 'exam-set-admin') document.getElementById('examSetAdminTab').classList.add('active');
   if (id === 'home') buildHome();
   if (id === 'stats') renderStats();
   if (id === 'admin') renderAdmin();
+  if (id === 'question-bank') renderQuestionBank();
+  if (id === 'exam-sets') renderExamSets();
+  if (id === 'exam-set-admin') renderExamSetAdmin();
 }
 
 // ===== HOME =====
@@ -1094,6 +1129,17 @@ async function buildHome() {
     });
     html += '</div>';
   });
+  try {
+    const res = await fetch('/api/categories');
+    if (res.ok) mongoQuizCategories = await res.json();
+    if (mongoQuizCategories.length) {
+      html += '<div class="part-label">📚 คลังข้อสอบจากฐานข้อมูล <span style="font-size:11px;color:var(--accent);font-weight:400;text-transform:none;letter-spacing:0">ข้อสอบที่เพิ่มโดยผู้ดูแล</span></div><div class="subject-grid">';
+      mongoQuizCategories.forEach(category => {
+        html += `<div class="subject-card" onclick="startMongoQuiz('${category._id}')"><div class="subject-icon">📚</div><div class="subject-name">${category.name}</div><div class="subject-count">ทำข้อสอบจากคลัง MongoDB</div></div>`;
+      });
+      html += '</div>';
+    }
+  } catch (e) {}
   document.getElementById('subjectContainer').innerHTML = html;
 }
 
@@ -1105,19 +1151,112 @@ function startQuiz(subjectId) {
   const pool = [...QB[subjectId]];
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   currentQuestions = pool; currentQ = 0; userAnswers = new Array(pool.length).fill(-1);
-  quizStartTime = Date.now(); answered = false;
+  quizStartTime = Date.now(); answered = false; finishingQuiz = false;
   clearInterval(timerInterval); timerInterval = setInterval(updateTimer, 1000);
   showPage('quiz'); renderQuestion();
 }
 
+async function startMongoQuiz(categoryId) {
+  const category = mongoQuizCategories.find(item => String(item._id) === String(categoryId));
+  if (!category) { alert('ไม่พบหมวดข้อสอบ'); return; }
+  try {
+    const res = await fetch(`/api/questions/random?categoryId=${encodeURIComponent(categoryId)}&limit=50`);
+    const questions = await res.json();
+    if (!res.ok || !questions.length) { alert('หมวดนี้ยังไม่มีข้อสอบที่เปิดใช้งาน'); return; }
+    currentSubject = {
+      id: `mongo:${categoryId}`,
+      categoryId,
+      name: category.name,
+      icon: '📚',
+      part: 'mongo',
+      partObj: { short: 'คลังข้อสอบ', bg: 'rgba(79,195,247,.12)', tc: '#4fc3f7' },
+    };
+    currentQuestions = questions.map(question => ({
+      questionId: question._id,
+      q: question.questionText,
+      opts: question.choices,
+      ans: question.correctAnswerIndex,
+      explain: question.explanation || 'ไม่มีคำอธิบายเพิ่มเติม',
+      topic: category.name,
+      year: new Date().getFullYear() + 543,
+    }));
+    currentQ = 0; userAnswers = new Array(currentQuestions.length).fill(-1);
+    quizStartTime = Date.now(); answered = false; finishingQuiz = false;
+    clearInterval(timerInterval); timerInterval = setInterval(updateTimer, 1000);
+    showPage('quiz'); renderQuestion();
+  } catch (e) { alert('ไม่สามารถโหลดข้อสอบจากคลังได้'); }
+}
+
+async function startExamSet(id) {
+  try {
+    const response = await fetch(`/api/exam-sets/${encodeURIComponent(id)}/start`, { method: 'POST', headers: jwtHeaders() });
+    const session = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401) throw new Error('กรุณาเข้าสู่ระบบใหม่');
+      throw new Error(session.error || 'ไม่สามารถเริ่มชุดข้อสอบได้');
+    }
+    if (!Array.isArray(session.questions) || session.questions.length !== session.totalQuestions) throw new Error('ระบบได้รับข้อสอบไม่ครบตามจำนวนที่กำหนด');
+    const firstCategory = session.categoryRules?.[0];
+    currentSubject = {
+      id: `exam-set:${session.examSetId}`,
+      categoryId: String(firstCategory?.categoryId || ''),
+      name: session.title,
+      icon: session.mode === 'exam' ? '⏱️' : '📝',
+      part: 'exam-set',
+      partObj: { short: session.mode === 'exam' ? 'โหมดสอบจริง' : 'โหมดฝึกทำ', bg: 'rgba(240,192,64,.12)', tc: '#f0c040' },
+      examSet: {
+        id: String(session.examSetId),
+        title: session.title,
+        mode: session.mode,
+        timeLimitMinutes: session.timeLimitMinutes,
+        passingScorePercent: session.passingScorePercent,
+        showExplanationAfterSubmit: session.showExplanationAfterSubmit,
+      },
+    };
+    currentQuestions = session.questions.map((question) => ({
+      questionId: question._id,
+      q: question.questionText,
+      opts: question.choices,
+      ans: question.correctAnswerIndex,
+      explain: question.explanation || 'ไม่มีคำอธิบายเพิ่มเติม',
+      topic: question.categoryName || 'ชุดข้อสอบ',
+      year: new Date().getFullYear() + 543,
+    }));
+    currentQ = 0;
+    userAnswers = new Array(currentQuestions.length).fill(-1);
+    quizStartTime = new Date(session.startedAt).getTime();
+    answered = false;
+    finishingQuiz = false;
+    clearInterval(timerInterval);
+    timerInterval = setInterval(updateTimer, 1000);
+    showPage('quiz');
+    updateTimer();
+    renderQuestion();
+  } catch (error) {
+    alert(error.message || 'ไม่สามารถเริ่มชุดข้อสอบได้');
+  }
+}
+
 function updateTimer() {
-  const e = Math.floor((Date.now() - quizStartTime) / 1000);
-  const m = Math.floor(e / 60).toString().padStart(2, '0'), s = (e % 60).toString().padStart(2, '0');
-  document.getElementById('quizBadgeTimer').textContent = `⏱ ${m}:${s}`;
+  if (!quizStartTime || !currentSubject) return;
+  const elapsed = Math.floor((Date.now() - quizStartTime) / 1000);
+  const examSet = currentSubject.examSet;
+  if (examSet?.mode === 'exam') {
+    const remaining = Math.max(0, (examSet.timeLimitMinutes * 60) - elapsed);
+    const minutes = Math.floor(remaining / 60).toString().padStart(2, '0');
+    const seconds = (remaining % 60).toString().padStart(2, '0');
+    document.getElementById('quizBadgeTimer').textContent = `⏱ เหลือ ${minutes}:${seconds}`;
+    if (remaining === 0 && !finishingQuiz) finishQuiz(true);
+    return;
+  }
+  const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+  const seconds = (elapsed % 60).toString().padStart(2, '0');
+  document.getElementById('quizBadgeTimer').textContent = `⏱ ${minutes}:${seconds}`;
 }
 
 function renderQuestion() {
   const q = currentQuestions[currentQ]; answered = userAnswers[currentQ] !== -1;
+  const isExamMode = currentSubject.examSet?.mode === 'exam';
   const total = currentQuestions.length;
   document.getElementById('quizTitle').textContent = currentSubject.name;
   document.getElementById('quizBadgePart').textContent = currentSubject.partObj.short;
@@ -1129,22 +1268,27 @@ function renderQuestion() {
   const L = ['ก', 'ข', 'ค', 'ง'];
   const opts = q.opts.map((o, i) => {
     let cls = 'option-btn';
-    if (answered) { if (i === q.ans) cls += ' correct'; else if (i === userAnswers[currentQ] && userAnswers[currentQ] !== q.ans) cls += ' wrong'; }
+    if (answered && isExamMode) { if (i === userAnswers[currentQ]) cls += ' selected'; }
+    else if (answered) { if (i === q.ans) cls += ' correct'; else if (i === userAnswers[currentQ] && userAnswers[currentQ] !== q.ans) cls += ' wrong'; }
     else if (i === userAnswers[currentQ]) cls += ' selected';
     return `<button class="${cls}" onclick="selectAnswer(${i})" ${answered ? 'disabled' : ''}><span class="opt-letter">${L[i]}</span><span>${o}</span></button>`;
   }).join('');
-  const explain = answered ? `<div class="explain-box">💡 <strong>เฉลย:</strong> ${q.explain}</div>` : '';
+  const explain = answered && !isExamMode ? `<div class="explain-box">💡 <strong>เฉลย:</strong> ${q.explain}</div>` : '';
   document.getElementById('quizContainer').innerHTML = `<div class="question-card"><div class="q-num">ข้อที่ ${currentQ+1} จาก ${total}</div><div class="q-tags"><span class="q-tag tag-year">📅 ปี พ.ศ. ${q.year}</span><span class="q-tag tag-topic">🏷 ${q.topic}</span><span class="q-tag tag-part">${currentSubject.partObj.short}</span></div><div class="q-text">${q.q}</div><div class="options">${opts}</div>${explain}</div>`;
 }
 
 function selectAnswer(i) { if (answered) return; userAnswers[currentQ] = i; answered = true; renderQuestion(); }
 function nextQ() { if (currentQ < currentQuestions.length - 1) { currentQ++; answered = userAnswers[currentQ] !== -1; renderQuestion(); } else finishQuiz(); }
 function prevQ() { if (currentQ > 0) { currentQ--; answered = userAnswers[currentQ] !== -1; renderQuestion(); } }
-function stopQuiz() { if (confirm('ต้องการหยุดทำข้อสอบหรือไม่?')) { clearInterval(timerInterval); showPage('home'); } }
+function stopQuiz() { if (confirm(currentSubject?.examSet?.mode === 'exam' ? 'ต้องการออกจากการสอบจริงหรือไม่? ผลการสอบชุดนี้จะไม่ถูกบันทึก' : 'ต้องการหยุดทำข้อสอบหรือไม่?')) { clearInterval(timerInterval); showPage('home'); } }
 
-async function finishQuiz() {
+async function finishQuiz(timedOut = false) {
+  if (finishingQuiz) return;
+  finishingQuiz = true;
   clearInterval(timerInterval);
-  const elapsed = Math.floor((Date.now() - quizStartTime) / 1000);
+  const rawElapsed = Math.floor((Date.now() - quizStartTime) / 1000);
+  const timeLimitSeconds = currentSubject.examSet?.timeLimitMinutes ? currentSubject.examSet.timeLimitMinutes * 60 : null;
+  const elapsed = timeLimitSeconds && currentSubject.examSet?.mode === 'exam' ? Math.min(rawElapsed, timeLimitSeconds) : rawElapsed;
   const correct = currentQuestions.filter((q, i) => userAnswers[i] === q.ans).length;
   const total = currentQuestions.length; const pct = Math.round(correct / total * 100);
   const entry = {
@@ -1161,11 +1305,58 @@ async function finishQuiz() {
       body: JSON.stringify(entry)
     });
   } catch (e) {}
-  const g = pct >= 80 ? { l:'ดีเยี่ยม', c:'grade-a' } : pct >= 70 ? { l:'ดี', c:'grade-b' } : pct >= 60 ? { l:'พอใช้', c:'grade-c' } : { l:'ต้องปรับปรุง', c:'grade-d' };
-  const pass = pct >= 60;
+  let attemptSaveMessage = '';
+  if (currentSubject.categoryId) {
+    const token = localStorage.getItem('authToken');
+    const attemptPayload = {
+      categoryId: currentSubject.categoryId,
+      guestName: token ? undefined : currentUser.name,
+      mode: currentSubject.examSet?.mode || 'practice',
+      examSetId: currentSubject.examSet?.id,
+      examSetTitle: currentSubject.examSet?.title,
+      totalQuestions: total,
+      correctCount: correct,
+      answers: currentQuestions.map((question, index) => ({
+        questionId: question.questionId,
+        questionText: question.q,
+        choices: question.opts,
+        selectedAnswerIndex: userAnswers[index],
+        correctAnswerIndex: question.ans,
+        isCorrect: userAnswers[index] === question.ans,
+        explanation: question.explain,
+      })),
+      startedAt: new Date(quizStartTime).toISOString(),
+      submittedAt: new Date().toISOString(),
+      durationSeconds: elapsed,
+    };
+    try {
+      const response = await fetch('/api/exam-attempts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? jwtHeaders() : {}) },
+        body: JSON.stringify(attemptPayload),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        attemptSaveMessage = response.status === 401 ? 'กรุณาเข้าสู่ระบบใหม่เพื่อบันทึกผลสอบ' : (data.error || 'ไม่สามารถบันทึกผลสอบได้');
+      }
+    } catch (e) { attemptSaveMessage = 'ไม่สามารถบันทึกผลสอบได้ กรุณาลองใหม่อีกครั้ง'; }
+  }
+  const passingScore = currentSubject.examSet?.passingScorePercent ?? 60;
+  const g = pct >= 80 ? { l:'ดีเยี่ยม', c:'grade-a' } : pct >= 70 ? { l:'ดี', c:'grade-b' } : pct >= passingScore ? { l:'ผ่านเกณฑ์', c:'grade-c' } : { l:'ไม่ผ่านเกณฑ์', c:'grade-d' };
+  const pass = pct >= passingScore;
   const mm = Math.floor(elapsed / 60).toString().padStart(2, '0'), ss = (elapsed % 60).toString().padStart(2, '0');
-  document.getElementById('resultCard').innerHTML = `<div class="result-score ${pass?'pass':'fail'}">${pct}%</div><div class="result-label">${correct} ข้อถูก จาก ${total} ข้อ · ${currentSubject.name}</div><div class="result-grade ${g.c}">${g.l}</div>`;
+  const timeMessage = timedOut ? ' · หมดเวลา ระบบส่งข้อสอบอัตโนมัติ' : '';
+  const passingMessage = currentSubject.examSet ? ` · เกณฑ์ผ่าน ${passingScore}%` : '';
+  document.getElementById('resultCard').innerHTML = `<div class="result-score ${pass?'pass':'fail'}">${pct}%</div><div class="result-label">${correct} ข้อถูก จาก ${total} ข้อ · ${currentSubject.name}${passingMessage}${timeMessage}</div><div class="result-grade ${g.c}">${g.l}</div>${attemptSaveMessage ? `<p class="bank-error" style="margin-top:14px;text-align:left">${bankEscape(attemptSaveMessage)}</p>` : ''}`;
   document.getElementById('resultStats').innerHTML = `<div class="stat-card"><div class="stat-num" style="color:var(--green)">${correct}</div><div class="stat-label">ตอบถูก</div></div><div class="stat-card"><div class="stat-num" style="color:var(--red)">${total-correct}</div><div class="stat-label">ตอบผิด</div></div><div class="stat-card"><div class="stat-num" style="color:var(--accent)">${mm}:${ss}</div><div class="stat-label">เวลาที่ใช้</div></div>`;
+  const showExplanation = currentSubject.examSet?.showExplanationAfterSubmit !== false;
+  document.getElementById('resultReviewTitle').style.display = showExplanation ? '' : 'none';
+  if (!showExplanation) {
+    document.getElementById('reviewList').innerHTML = '<div class="empty-note">ชุดข้อสอบนี้ตั้งค่าไม่ให้แสดงเฉลยหลังส่งข้อสอบ</div>';
+    showPage('result');
+    buildHome();
+    return;
+  }
   const L = ['ก', 'ข', 'ค', 'ง'];
   document.getElementById('reviewList').innerHTML = currentQuestions.map((q, i) => {
     const ua = userAnswers[i]; const ok = ua === q.ans;
@@ -1175,30 +1366,201 @@ async function finishQuiz() {
   buildHome();
 }
 
-function retryQuiz() { startQuiz(currentSubject.id); }
+function retryQuiz() {
+  if (currentSubject?.examSet?.id) { startExamSet(currentSubject.examSet.id); return; }
+  currentSubject.id.startsWith('mongo:') ? startMongoQuiz(currentSubject.categoryId) : startQuiz(currentSubject.id);
+}
 
 // ===== STATS =====
+let statsAttempts = [];
+
+function showStatsError(message = '') {
+  const element = document.getElementById('statsError');
+  element.textContent = message;
+  element.style.display = message ? 'block' : 'none';
+}
+
+function formatAttemptDuration(seconds) {
+  const value = Number(seconds) || 0;
+  return `${Math.floor(value / 60).toString().padStart(2, '0')}:${(value % 60).toString().padStart(2, '0')}`;
+}
+
+function formatAttemptDate(value) {
+  return value ? new Date(value).toLocaleString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+}
+
+function renderStatsSummary(cards) {
+  document.getElementById('statsOverall').innerHTML = cards.map((card) => `<div class="stat-big"><div class="num" style="color:${card.color}">${card.value}</div><div class="lbl">${card.label}</div></div>`).join('');
+}
+
+function renderStatsInsights(items) {
+  document.getElementById('statsInsights').innerHTML = items.filter(Boolean).map((item) => `<span>${bankEscape(item)}</span>`).join('');
+}
+
+function renderScoreTrend(trend) {
+  const element = document.getElementById('statsTrend');
+  if (!trend?.length) {
+    element.innerHTML = '<div class="empty-note">ยังไม่มีประวัติการทำข้อสอบ</div>';
+    return;
+  }
+  element.innerHTML = trend.map((item) => `<div class="trend-item"><div class="trend-bar-wrap"><div class="trend-bar" style="height:${Math.max(item.scorePercent, 3)}%" title="${item.scorePercent}%"></div></div><strong>${item.scorePercent}%</strong><br><span>${new Date(item.submittedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</span></div>`).join('');
+}
+
+function renderCategoryStats(categoryStats) {
+  const element = document.getElementById('barChart');
+  if (!categoryStats?.length) {
+    element.innerHTML = '<div class="empty-note">ยังไม่มีข้อมูลแยกตามหมวด</div>';
+    return;
+  }
+  element.innerHTML = categoryStats.map((stat) => `<div class="bar-row"><div class="bar-label">${bankEscape(stat.categoryName)}</div><div class="bar-bg"><div class="bar-fill" style="width:${stat.averageScore}%"></div></div><div class="bar-val">${stat.averageScore}% (${stat.attempts})</div></div>`).join('');
+}
+
+async function populateStatsAdminFilters() {
+  const [users, categories] = await Promise.all([
+    adminRequest('/api/users'),
+    adminRequest('/api/categories?includeInactive=true'),
+  ]);
+  const userSelect = document.getElementById('statsUserFilter');
+  const categorySelect = document.getElementById('statsCategoryFilter');
+  const selectedUser = userSelect.value;
+  const selectedCategory = categorySelect.value;
+  userSelect.innerHTML = `<option value="">ผู้ใช้ทั้งหมด</option>${users.map((user) => `<option value="${user.id}">${bankEscape(user.name)} (${bankEscape(user.email || user.username)})</option>`).join('')}`;
+  categorySelect.innerHTML = `<option value="">ทุกหมวดข้อสอบ</option>${categories.map((category) => `<option value="${category._id}">${bankEscape(category.name)}</option>`).join('')}`;
+  userSelect.value = users.some((user) => user.id === selectedUser) ? selectedUser : '';
+  categorySelect.value = categories.some((category) => String(category._id) === selectedCategory) ? selectedCategory : '';
+}
+
 async function renderStats() {
-  const hist = await fetchHistory();
-  const totalTests = hist.length;
-  const avg = totalTests ? Math.round(hist.reduce((a, h) => a + h.pct, 0) / totalTests) : 0;
-  const best = totalTests ? Math.max(...hist.map(h => h.pct)) : 0;
-  const totalQ = hist.reduce((a, h) => a + h.total, 0);
-  const totalCorrect = hist.reduce((a, h) => a + h.correct, 0);
-  document.getElementById('statsOverall').innerHTML = `<div class="stat-big"><div class="num" style="color:var(--gold)">${totalTests}</div><div class="lbl">ครั้งที่ทดสอบ</div></div><div class="stat-big"><div class="num" style="color:var(--accent)">${avg}%</div><div class="lbl">คะแนนเฉลี่ย</div></div><div class="stat-big"><div class="num" style="color:var(--green)">${best}%</div><div class="lbl">คะแนนสูงสุด</div></div><div class="stat-big"><div class="num" style="color:var(--muted)">${totalQ}</div><div class="lbl">ข้อทั้งหมด</div></div><div class="stat-big"><div class="num" style="color:var(--purple)">${totalCorrect}</div><div class="lbl">ตอบถูกรวม</div></div>`;
-  const ptColor = { p1:'#4fc3f7', p2:'#f0c040', p3:'#9b59b6' };
-  document.getElementById('barChart').innerHTML = SUBJECTS.map(s => {
-    const tests = hist.filter(h => h.subjectId === s.id);
-    const a = tests.length ? Math.round(tests.reduce((x, h) => x + h.pct, 0) / tests.length) : null;
-    if (a === null) return `<div class="bar-row"><div class="bar-label">${s.icon} ${s.name}</div><div class="bar-bg"><div class="bar-fill" style="width:0%"></div></div><div class="bar-val" style="color:var(--muted)">—</div></div>`;
-    return `<div class="bar-row"><div class="bar-label">${s.icon} ${s.name}</div><div class="bar-bg"><div class="bar-fill" style="width:${a}%"></div></div><div class="bar-val">${a}%</div></div>`;
+  const isAdmin = currentUser?.role === 'admin';
+  document.getElementById('statsPageTitle').textContent = isAdmin ? '📊 Dashboard ประวัติ / สถิติ' : '📊 ประวัติ / สถิติของฉัน';
+  document.getElementById('statsPageSubtitle').textContent = isAdmin ? 'ภาพรวมผู้สอบทั้งหมดและประวัติการทำข้อสอบ' : 'สรุปผลการทำข้อสอบจากคลังข้อสอบของคุณ';
+  document.getElementById('statsAdminFilters').style.display = isAdmin ? '' : 'none';
+  document.getElementById('statsAdminLeaderboard').style.display = isAdmin ? '' : 'none';
+  document.getElementById('attemptDetail').style.display = 'none';
+  showStatsError();
+  try {
+    if (isAdmin) {
+      const overview = await adminRequest('/api/stats/overview');
+      renderStatsSummary([
+        { value: overview.totalUsers, label: 'ผู้ใช้ทั้งหมด', color: 'var(--gold)' },
+        { value: overview.totalQuestions, label: 'ข้อสอบทั้งหมด', color: 'var(--accent)' },
+        { value: overview.totalAttempts, label: 'ครั้งที่ทำข้อสอบ', color: 'var(--green)' },
+        { value: `${overview.averageScore}%`, label: 'คะแนนเฉลี่ยรวม', color: 'var(--purple)' },
+      ]);
+      renderScoreTrend([]);
+      renderCategoryStats(overview.categoryStats);
+      renderStatsInsights([
+        overview.mostAttemptedCategory ? `หมวดที่มีคนทำมากที่สุด: ${overview.mostAttemptedCategory.categoryName} (${overview.mostAttemptedCategory.attempts} ครั้ง)` : '',
+        overview.lowestScoreCategory ? `หมวดคะแนนเฉลี่ยต่ำสุด: ${overview.lowestScoreCategory.categoryName} (${overview.lowestScoreCategory.averageScore}%)` : '',
+        overview.examSetStats?.[0] ? `ชุดข้อสอบที่มีคนทำมากที่สุด: ${overview.examSetStats[0].examSetTitle} (${overview.examSetStats[0].attempts} ครั้ง)` : '',
+      ]);
+      document.getElementById('statsTopUsers').innerHTML = overview.topUsers.length ? overview.topUsers.map((user) => `<tr><td>${bankEscape(user.name)}<br><span style="color:var(--muted);font-size:12px">${bankEscape(user.email)}</span></td><td>${user.attempts}</td><td>${user.averageScore}%</td><td>${user.bestScore}%</td></tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted)">ยังไม่มีข้อมูลผู้สอบ</td></tr>';
+      await populateStatsAdminFilters();
+    } else {
+      const stats = await adminRequest('/api/stats/me');
+      renderStatsSummary([
+        { value: stats.totalAttempts, label: 'ทำข้อสอบแล้ว', color: 'var(--gold)' },
+        { value: `${stats.averageScore}%`, label: 'คะแนนเฉลี่ย', color: 'var(--accent)' },
+        { value: `${stats.bestScore}%`, label: 'คะแนนสูงสุด', color: 'var(--green)' },
+        { value: stats.latestScore === null ? '—' : `${stats.latestScore}%`, label: 'คะแนนล่าสุด', color: 'var(--purple)' },
+      ]);
+      renderScoreTrend(stats.trend);
+      renderCategoryStats(stats.categoryStats);
+      renderStatsInsights([
+        stats.mostFrequentCategory ? `หมวดที่ทำบ่อยที่สุด: ${stats.mostFrequentCategory.categoryName} (${stats.mostFrequentCategory.attempts} ครั้ง)` : '',
+        stats.lowestScoreCategory ? `หมวดที่ควรทบทวน: ${stats.lowestScoreCategory.categoryName} (${stats.lowestScoreCategory.averageScore}%)` : '',
+        stats.examSetStats?.[0] ? `ทำชุดข้อสอบ: ${stats.examSetStats[0].examSetTitle} (${stats.examSetStats[0].attempts} ครั้ง)` : '',
+      ]);
+    }
+    await loadStatsAttempts();
+  } catch (error) {
+    showStatsError(error.message || 'ไม่สามารถโหลดสถิติได้');
+  }
+}
+
+async function loadStatsAttempts() {
+  try {
+    const isAdmin = currentUser?.role === 'admin';
+    const params = new URLSearchParams({ limit: '100' });
+    if (isAdmin) {
+      const userId = document.getElementById('statsUserFilter').value;
+      const categoryId = document.getElementById('statsCategoryFilter').value;
+      const dateFrom = document.getElementById('statsDateFrom').value;
+      const dateTo = document.getElementById('statsDateTo').value;
+      if (userId) params.set('userId', userId);
+      if (categoryId) params.set('categoryId', categoryId);
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
+    }
+    const response = await adminRequest(`/api/exam-attempts?${params.toString()}`);
+    statsAttempts = response.attempts || [];
+    document.getElementById('attemptHistoryTitle').textContent = isAdmin ? 'ประวัติผู้สอบทั้งหมด' : 'ประวัติการทดสอบของฉัน';
+    renderStatsAttempts(isAdmin);
+  } catch (error) { showStatsError(error.message || 'ไม่สามารถโหลดประวัติได้'); }
+}
+
+function renderStatsAttempts(isAdmin) {
+  const list = document.getElementById('historyBody');
+  if (!statsAttempts.length) {
+    list.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">ยังไม่มีประวัติการทำข้อสอบ</td></tr>';
+    return;
+  }
+  list.innerHTML = statsAttempts.map((attempt) => {
+    const id = attempt._id || attempt.id;
+    const user = attempt.userId;
+    const userLabel = isAdmin ? bankEscape(user?.name || attempt.guestName || 'ผู้ใช้ที่ไม่ระบุ') : 'ฉัน';
+    const category = bankEscape(attempt.categoryName || attempt.categoryId?.name || 'ไม่ระบุหมวด');
+    const examSetLabel = attempt.examSetTitle ? `${bankEscape(attempt.examSetTitle)}<br><span class="status-badge ${attempt.passed ? 'status-approved' : 'status-rejected'}">${attempt.passed ? 'ผ่าน' : 'ไม่ผ่าน'}</span>` : '—';
+    return `<tr><td>${formatAttemptDate(attempt.submittedAt)}</td><td>${userLabel}</td><td>${category}</td><td>${examSetLabel}</td><td>${attempt.correctCount}/${attempt.totalQuestions}</td><td><span class="attempt-status">${attempt.scorePercent}%</span></td><td>${formatAttemptDuration(attempt.durationSeconds)}</td><td><button class="btn btn-secondary btn-sm" onclick="viewAttemptDetail('${id}')">ดูรายละเอียด</button></td></tr>`;
   }).join('');
-  if (!hist.length) { document.getElementById('historyBody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">ยังไม่มีประวัติการทดสอบ</td></tr>'; return; }
-  document.getElementById('historyBody').innerHTML = hist.map((h, i) => {
-    const c = h.pct >= 80 ? 'var(--green)' : h.pct >= 70 ? 'var(--accent)' : h.pct >= 60 ? 'var(--gold)' : 'var(--red)';
-    const mm = Math.floor(h.elapsed / 60).toString().padStart(2, '0'), ss = (h.elapsed % 60).toString().padStart(2, '0');
-    return `<tr><td style="color:var(--muted)">${i+1}</td><td style="color:${ptColor[h.partId]||'var(--muted)'};font-size:12px">${h.partShort||'—'}</td><td>${h.icon} ${h.subjectName}</td><td><span class="score-pill" style="background:${c}22;color:${c}">${h.pct}%</span></td><td>${h.correct}/${h.total}</td><td>${mm}:${ss}</td><td style="color:var(--muted);font-size:12px">${h.date}</td></tr>`;
-  }).join('');
+}
+
+async function viewAttemptDetail(id) {
+  try {
+    const attempt = await adminRequest(`/api/exam-attempts/${id}`);
+    const detail = document.getElementById('attemptDetail');
+    if (attempt.showExplanationAfterSubmit === false && currentUser?.role !== 'admin') {
+      detail.innerHTML = `<h3>${bankEscape(attempt.examSetTitle || attempt.categoryName || 'ผลการทดสอบ')}</h3><p>คะแนน ${attempt.scorePercent}% · ${attempt.correctCount}/${attempt.totalQuestions} · เวลา ${formatAttemptDuration(attempt.durationSeconds)}</p><div class="empty-note">ชุดข้อสอบนี้ตั้งค่าไม่ให้แสดงเฉลยย้อนหลัง</div>`;
+      detail.style.display = 'block';
+      detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    const labels = ['A', 'B', 'C', 'D'];
+    const answers = attempt.answers || [];
+    const answerHtml = answers.length ? answers.map((answer, index) => {
+      const selected = answer.selectedAnswerIndex === undefined ? 'ไม่ได้ตอบ' : `${labels[answer.selectedAnswerIndex]}. ${bankEscape(answer.choices?.[answer.selectedAnswerIndex] || '—')}`;
+      const correct = answer.correctAnswerIndex === undefined ? '—' : `${labels[answer.correctAnswerIndex]}. ${bankEscape(answer.choices?.[answer.correctAnswerIndex] || '—')}`;
+      return `<div class="review-item ${answer.isCorrect ? 'correct-item' : 'wrong-item'}"><div class="q-num">ข้อ ${index + 1} ${answer.isCorrect ? '✅ ถูก' : '❌ ผิด'}</div><div class="review-q">${bankEscape(answer.questionText || 'ไม่มี snapshot คำถาม')}</div><div class="review-ans"><span class="your-ans">คำตอบที่เลือก: ${selected}</span><span class="right-ans">คำตอบที่ถูก: ${correct}</span></div>${answer.explanation ? `<div class="explain-box">💡 ${bankEscape(answer.explanation)}</div>` : ''}</div>`;
+    }).join('') : '<div class="empty-note">Attempt นี้ไม่มีรายละเอียดคำตอบย้อนหลัง</div>';
+    const heading = attempt.examSetTitle || attempt.categoryName || attempt.categoryId?.name || 'ผลการทดสอบ';
+    const passedLabel = attempt.examSetTitle ? ` · ${attempt.passed ? 'ผ่านเกณฑ์' : 'ไม่ผ่านเกณฑ์'}` : '';
+    detail.innerHTML = `<h3>${bankEscape(heading)}</h3><p>คะแนน ${attempt.scorePercent}% · ${attempt.correctCount}/${attempt.totalQuestions} · เวลา ${formatAttemptDuration(attempt.durationSeconds)}${passedLabel}</p>${answerHtml}`;
+    detail.style.display = 'block';
+    detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (error) { showStatsError(error.message || 'ไม่สามารถโหลดรายละเอียดผลสอบได้'); }
+}
+
+async function exportAttempts() {
+  if (currentUser?.role !== 'admin') return;
+  try {
+    const params = new URLSearchParams({ limit: '100' });
+    const userId = document.getElementById('statsUserFilter').value;
+    const categoryId = document.getElementById('statsCategoryFilter').value;
+    const dateFrom = document.getElementById('statsDateFrom').value;
+    const dateTo = document.getElementById('statsDateTo').value;
+    if (userId) params.set('userId', userId);
+    if (categoryId) params.set('categoryId', categoryId);
+    if (dateFrom) params.set('dateFrom', dateFrom);
+    if (dateTo) params.set('dateTo', dateTo);
+    const response = await adminRequest(`/api/exam-attempts?${params.toString()}`);
+    const blob = new Blob([JSON.stringify(response.attempts || [], null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'krupuchuay-exam-attempts.json';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  } catch (error) { showStatsError(error.message || 'ไม่สามารถ export ประวัติได้'); }
 }
 
 // ===== ADMIN =====
@@ -1207,27 +1569,35 @@ const STATUS_LABEL = { approved: '🟢 อนุมัติแล้ว', pendi
 async function renderAdmin() {
   await renderPendingUsers();
   try {
-    const res = await fetch('/api/users');
+    const res = await fetch('/api/users', { headers: jwtHeaders() });
     if (!res.ok) return;
     const users = await res.json();
     document.getElementById('userList').innerHTML = users.map(u => {
-      const statusBadge = u.role === 'admin' ? '' : `<span class="status-badge status-${u.status}">${STATUS_LABEL[u.status] || u.status}</span>`;
+      const status = u.approvalStatus;
+      const statusBadge = `<span class="status-badge status-${status}">${STATUS_LABEL[status] || status}</span>`;
+      const legacyBadge = u.isLegacy ? '<span class="status-badge legacy-badge">บัญชีเก่า/Legacy</span>' : '';
+      const createdAt = u.createdAt ? new Date(u.createdAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+      const isCurrentUser = u.id === currentUser.id || u.username === currentUser.username;
       const actions = [];
-      if (u.username !== currentUser.username) {
-        if (u.role !== 'admin' && u.status === 'approved') actions.push(`<button class="btn btn-danger btn-sm" onclick="setUserStatus('${u.username}','${u.name.replace(/'/g,'')}','rejected')">ระงับสิทธิ์</button>`);
-        if (u.role !== 'admin' && u.status === 'rejected') actions.push(`<button class="btn btn-success btn-sm" onclick="setUserStatus('${u.username}','${u.name.replace(/'/g,'')}','approved')">เปิดสิทธิ์</button>`);
-        actions.push(`<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.username}','${u.name.replace(/'/g,'')}')">ลบ</button>`);
-      } else {
+      if (u.isLegacy) actions.push(`<button class="btn btn-primary btn-sm" onclick="addLegacyEmail('${u.id}','${u.name.replace(/'/g,'')}')">เพิ่มอีเมล</button>`);
+      if (isCurrentUser) {
         actions.push('<span style="font-size:12px;color:var(--muted)">บัญชีของคุณ</span>');
+      } else if (u.role === 'user') {
+        if (status === 'approved') actions.push(`<button class="btn btn-danger btn-sm" onclick="setUserStatus('${u.id}','${u.name.replace(/'/g,'')}','rejected')">ระงับสิทธิ์</button>`);
+        if (status === 'rejected') actions.push(`<button class="btn btn-success btn-sm" onclick="setUserStatus('${u.id}','${u.name.replace(/'/g,'')}','approved')">เปิดสิทธิ์</button>`);
+        actions.push(`<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}','${u.name.replace(/'/g,'')}')">ลบ</button>`);
+      } else {
+        actions.push('<span style="font-size:12px;color:var(--muted)">บัญชีผู้ดูแลระบบ</span>');
       }
-      return `<div class="user-item"><div class="user-info"><div class="uname">${u.role==='admin'?'👑':'👤'} ${u.name} <span style="color:var(--muted);font-weight:400;font-size:13px">(${u.username})</span>${statusBadge}</div><div class="urole">${u.role==='admin'?'ผู้ดูแลระบบ':'ผู้สมัครสอบ'}</div></div><div class="pending-actions">${actions.join('')}</div></div>`;
+      const accountLabel = u.email || `ไม่มีอีเมล · username: ${u.username}`;
+      return `<div class="user-item"><div class="user-info"><div class="uname">${u.role==='admin'?'👑':'👤'} ${u.name} ${statusBadge}${legacyBadge}</div><div class="urole">${accountLabel} · ${u.role} · สมัครเมื่อ ${createdAt}</div></div><div class="pending-actions">${actions.join('')}</div></div>`;
     }).join('');
   } catch (e) {}
 }
 
 async function renderPendingUsers() {
   try {
-    const res = await fetch('/api/users/pending');
+    const res = await fetch('/api/users/pending', { headers: jwtHeaders() });
     if (!res.ok) return;
     const pending = await res.json();
     const badge = document.getElementById('pendingBadge');
@@ -1236,68 +1606,595 @@ async function renderPendingUsers() {
     const list = document.getElementById('pendingUserList');
     if (!pending.length) { list.innerHTML = '<div class="empty-note">ไม่มีคำขอสมัครสมาชิกใหม่</div>'; return; }
     list.innerHTML = pending.map(u => {
-      const date = u.registeredAt ? new Date(u.registeredAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
-      return `<div class="pending-item"><div class="user-info"><div class="uname">👤 ${u.name} <span style="color:var(--muted);font-weight:400;font-size:13px">(${u.username})</span></div><div class="urole">สมัครเมื่อ ${date}</div></div><div class="pending-actions"><button class="btn btn-success btn-sm" onclick="approveUser('${u.username}','${u.name.replace(/'/g,'')}')">✅ อนุมัติ</button><button class="btn btn-danger btn-sm" onclick="rejectUser('${u.username}','${u.name.replace(/'/g,'')}')">❌ ปฏิเสธ</button></div></div>`;
+      const date = u.createdAt ? new Date(u.createdAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+      const legacyBadge = u.isLegacy ? '<span class="status-badge legacy-badge">บัญชีเก่า/Legacy</span>' : '';
+      return `<div class="pending-item"><div class="user-info"><div class="uname">👤 ${u.name} <span style="color:var(--muted);font-weight:400;font-size:13px">(${u.email || u.username})</span>${legacyBadge}</div><div class="urole">สมัครเมื่อ ${date}</div></div><div class="pending-actions"><button class="btn btn-success btn-sm" onclick="approveUser('${u.id}','${u.name.replace(/'/g,'')}')">✅ อนุมัติ</button><button class="btn btn-danger btn-sm" onclick="rejectUser('${u.id}','${u.name.replace(/'/g,'')}')">❌ ปฏิเสธ</button></div></div>`;
     }).join('');
   } catch (e) {}
 }
 
-async function approveUser(username, name) {
+async function approveUser(id, name) {
   try {
-    const res = await fetch(`/api/users/${username}/approve`, { method: 'POST' });
+    const res = await fetch(`/api/users/${id}/approve`, { method: 'PATCH', headers: jwtHeaders() });
     if (res.ok) { renderAdmin(); }
     else { const d = await res.json(); alert('❌ ' + d.error); }
   } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
 }
 
-async function rejectUser(username, name) {
+async function rejectUser(id, name) {
   if (!confirm('ต้องการปฏิเสธคำขอสมัครสมาชิกของ ' + name + ' หรือไม่?')) return;
   try {
-    const res = await fetch(`/api/users/${username}/reject`, { method: 'POST' });
+    const res = await fetch(`/api/users/${id}/reject`, { method: 'PATCH', headers: jwtHeaders() });
     if (res.ok) { renderAdmin(); }
     else { const d = await res.json(); alert('❌ ' + d.error); }
   } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
 }
 
-async function setUserStatus(username, name, status) {
+async function setUserStatus(id, name, status) {
   const verb = status === 'approved' ? 'เปิดสิทธิ์ใช้งาน' : 'ระงับสิทธิ์ใช้งาน';
   if (!confirm(`ต้องการ${verb}ของ ${name} หรือไม่?`)) return;
   const endpoint = status === 'approved' ? 'approve' : 'reject';
   try {
-    const res = await fetch(`/api/users/${username}/${endpoint}`, { method: 'POST' });
+    const res = await fetch(`/api/users/${id}/${endpoint}`, { method: 'PATCH', headers: jwtHeaders() });
     if (res.ok) { renderAdmin(); }
     else { const d = await res.json(); alert('❌ ' + d.error); }
   } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
 }
 
 async function addUser() {
-  const u = document.getElementById('newUsername').value.trim();
-  const p = document.getElementById('newPassword').value.trim();
-  const n = document.getElementById('newName').value.trim();
-  if (!u || !p || !n) { alert('กรุณากรอกข้อมูลให้ครบทุกช่อง'); return; }
+  const name = document.getElementById('newName').value.trim();
+  const email = document.getElementById('newEmail').value.trim();
+  const password = document.getElementById('newPassword').value;
+  const role = document.getElementById('newRole').value;
+  const approvalStatus = document.getElementById('newApprovalStatus').value;
+  if (!name || !email || !password) { alert('กรุณากรอกข้อมูลให้ครบทุกช่อง'); return; }
   try {
     const res = await fetch('/api/users', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: u, password: p, name: n })
+      headers: { 'Content-Type': 'application/json', ...jwtHeaders() },
+      body: JSON.stringify({ name, email, password, role, approvalStatus })
     });
     const data = await res.json();
     if (!res.ok) { alert('❌ ' + data.error); return; }
-    document.getElementById('newUsername').value = '';
+    document.getElementById('newEmail').value = '';
     document.getElementById('newPassword').value = '';
     document.getElementById('newName').value = '';
-    alert('✅ เพิ่มผู้ใช้ ' + n + ' เรียบร้อยแล้ว');
+    document.getElementById('newRole').value = 'user';
+    document.getElementById('newApprovalStatus').value = 'approved';
+    alert('✅ เพิ่มผู้ใช้ ' + name + ' เรียบร้อยแล้ว');
     renderAdmin();
   } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
 }
 
-async function deleteUser(username, name) {
+async function addLegacyEmail(id, name) {
+  const email = prompt(`เพิ่มอีเมลให้ ${name}`);
+  if (!email) return;
+  try {
+    const res = await fetch(`/api/users/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...jwtHeaders() },
+      body: JSON.stringify({ email: email.trim() })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert('❌ ' + data.error); return; }
+    renderAdmin();
+  } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
+}
+
+async function deleteUser(id, name) {
   if (!confirm('ต้องการลบผู้ใช้ ' + name + ' หรือไม่?')) return;
   try {
-    const res = await fetch('/api/users/' + username, { method: 'DELETE' });
+    const res = await fetch('/api/users/' + id, { method: 'DELETE', headers: jwtHeaders() });
     if (res.ok) { renderAdmin(); }
     else { const d = await res.json(); alert('❌ ' + d.error); }
   } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
+}
+
+// ===== QUESTION BANK ADMIN =====
+let bankCategories = [], bankQuestions = [], bankQuestionCounts = {}, questionSearchTimer = null;
+
+function bankEscape(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
+}
+
+function showQuestionBankError(message = '') {
+  const element = document.getElementById('questionBankError');
+  element.textContent = message;
+  element.style.display = message ? 'block' : 'none';
+}
+
+async function adminRequest(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: { ...jwtHeaders(), ...(options.headers || {}) },
+  });
+  if (response.ok) return response.status === 204 ? null : response.json();
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 401) throw new Error('กรุณาเข้าสู่ระบบใหม่');
+  if (response.status === 403) throw new Error('ไม่มีสิทธิ์เข้าถึง');
+  throw new Error(data.error || 'เกิดข้อผิดพลาดในการจัดการคลังข้อสอบ');
+}
+
+function formatBankDate(value) {
+  return value ? new Date(value).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+}
+
+function categoryIdOf(category) {
+  return String(category._id || category.id);
+}
+
+function questionIdOf(question) {
+  return String(question._id || question.id);
+}
+
+function populateBankCategoryOptions() {
+  const filter = document.getElementById('questionFilterCategory');
+  const form = document.getElementById('questionCategoryInput');
+  const selectedFilter = filter.value;
+  const selectedForm = form.value;
+  const options = bankCategories.map(category => `<option value="${categoryIdOf(category)}">${bankEscape(category.name)}${category.isActive ? '' : ' (ปิดใช้งาน)'}</option>`).join('');
+  filter.innerHTML = `<option value="">ทุกหมวดข้อสอบ</option>${options}`;
+  form.innerHTML = `<option value="">เลือกหมวดข้อสอบ</option>${options}`;
+  filter.value = bankCategories.some(category => categoryIdOf(category) === selectedFilter) ? selectedFilter : '';
+  form.value = bankCategories.some(category => categoryIdOf(category) === selectedForm) ? selectedForm : '';
+}
+
+async function renderQuestionBank() {
+  try {
+    showQuestionBankError();
+    bankCategories = await adminRequest('/api/categories?includeInactive=true');
+    populateBankCategoryOptions();
+    const allQuestions = await adminRequest('/api/questions?isActive=all');
+    bankQuestionCounts = allQuestions.reduce((counts, question) => {
+      const id = String(question.categoryId);
+      counts[id] = (counts[id] || 0) + 1;
+      return counts;
+    }, {});
+    renderManagedCategories();
+    await loadManagedQuestions();
+  } catch (error) {
+    showQuestionBankError(error.message);
+  }
+}
+
+function renderManagedCategories() {
+  const list = document.getElementById('categoryManagerList');
+  if (!bankCategories.length) {
+    list.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted)">ยังไม่มีหมวดข้อสอบ</td></tr>';
+    return;
+  }
+  list.innerHTML = bankCategories.map(category => {
+    const id = categoryIdOf(category);
+    const status = category.isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
+    const statusClass = category.isActive ? 'status-approved' : 'status-rejected';
+    const toggleLabel = category.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน';
+    return `<tr><td>${bankEscape(category.name)}</td><td>${bankEscape(category.description || '—')}</td><td>${category.order}</td><td><span class="status-badge ${statusClass}">${status}</span></td><td>${bankQuestionCounts[id] || 0}</td><td><div class="bank-actions"><button class="btn btn-secondary btn-sm" onclick="editCategory('${id}')">แก้ไข</button><button class="btn btn-danger btn-sm" onclick="toggleCategory('${id}')">${toggleLabel}</button></div></td></tr>`;
+  }).join('');
+}
+
+function resetCategoryForm() {
+  document.getElementById('editingCategoryId').value = '';
+  document.getElementById('categoryNameInput').value = '';
+  document.getElementById('categoryDescriptionInput').value = '';
+  document.getElementById('categoryOrderInput').value = '0';
+  document.getElementById('categoryActiveInput').checked = true;
+}
+
+function editCategory(id) {
+  const category = bankCategories.find(item => categoryIdOf(item) === id);
+  if (!category) return;
+  document.getElementById('editingCategoryId').value = id;
+  document.getElementById('categoryNameInput').value = category.name;
+  document.getElementById('categoryDescriptionInput').value = category.description || '';
+  document.getElementById('categoryOrderInput').value = category.order || 0;
+  document.getElementById('categoryActiveInput').checked = category.isActive;
+}
+
+async function saveCategory() {
+  const id = document.getElementById('editingCategoryId').value;
+  const name = document.getElementById('categoryNameInput').value.trim();
+  const description = document.getElementById('categoryDescriptionInput').value.trim();
+  const order = Number(document.getElementById('categoryOrderInput').value);
+  const isActive = document.getElementById('categoryActiveInput').checked;
+  if (!name) { showQuestionBankError('กรุณาระบุชื่อหมวดข้อสอบ'); return; }
+  try {
+    await adminRequest(id ? `/api/categories/${id}` : '/api/categories', {
+      method: id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description, order: Number.isFinite(order) ? order : 0, isActive }),
+    });
+    resetCategoryForm();
+    await renderQuestionBank();
+  } catch (error) {
+    showQuestionBankError(error.message);
+  }
+}
+
+async function toggleCategory(id) {
+  const category = bankCategories.find(item => categoryIdOf(item) === id);
+  if (!category) return;
+  try {
+    await adminRequest(`/api/categories/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: !category.isActive }),
+    });
+    await renderQuestionBank();
+  } catch (error) { showQuestionBankError(error.message); }
+}
+
+function debouncedQuestionSearch() {
+  clearTimeout(questionSearchTimer);
+  questionSearchTimer = setTimeout(loadManagedQuestions, 250);
+}
+
+async function loadManagedQuestions() {
+  try {
+    const params = new URLSearchParams({ isActive: document.getElementById('questionFilterActive').value });
+    const categoryId = document.getElementById('questionFilterCategory').value;
+    const difficulty = document.getElementById('questionFilterDifficulty').value;
+    const search = document.getElementById('questionSearch').value.trim();
+    if (categoryId) params.set('categoryId', categoryId);
+    if (difficulty) params.set('difficulty', difficulty);
+    if (search) params.set('search', search);
+    bankQuestions = await adminRequest(`/api/questions?${params.toString()}`);
+    renderManagedQuestions();
+  } catch (error) { showQuestionBankError(error.message); }
+}
+
+function renderManagedQuestions() {
+  const list = document.getElementById('questionManagerList');
+  const categoryNames = Object.fromEntries(bankCategories.map(category => [categoryIdOf(category), category.name]));
+  if (!bankQuestions.length) {
+    list.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted)">ไม่พบข้อสอบตามเงื่อนไข</td></tr>';
+    return;
+  }
+  list.innerHTML = bankQuestions.map(question => {
+    const id = questionIdOf(question);
+    const status = question.isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
+    const statusClass = question.isActive ? 'status-approved' : 'status-rejected';
+    const toggle = question.isActive ? 'ปิดใช้' : 'เปิดใช้';
+    return `<tr><td>${bankEscape(categoryNames[String(question.categoryId)] || 'ไม่พบหมวด')}</td><td class="question-summary" title="${bankEscape(question.questionText)}">${bankEscape(question.questionText)}</td><td>${bankEscape(question.difficulty)}</td><td><span class="status-badge ${statusClass}">${status}</span></td><td>${formatBankDate(question.createdAt)}</td><td><div class="bank-actions"><button class="btn btn-secondary btn-sm" onclick="viewQuestion('${id}')">ดู</button><button class="btn btn-secondary btn-sm" onclick="editQuestion('${id}')">แก้ไข</button><button class="btn btn-danger btn-sm" onclick="toggleQuestion('${id}')">${toggle}</button><button class="btn btn-danger btn-sm" onclick="deleteQuestionFromBank('${id}')">ลบ</button></div></td></tr>`;
+  }).join('');
+}
+
+function resetQuestionForm() {
+  document.getElementById('editingQuestionId').value = '';
+  document.getElementById('questionFormTitle').textContent = 'เพิ่มข้อสอบใหม่';
+  document.getElementById('questionCategoryInput').value = '';
+  document.getElementById('questionDifficultyInput').value = 'medium';
+  document.getElementById('questionActiveInput').checked = true;
+  document.getElementById('questionTextInput').value = '';
+  [0, 1, 2, 3].forEach(index => { document.getElementById(`choiceInput${index}`).value = ''; });
+  document.getElementById('correctAnswerIndexInput').value = '0';
+  document.getElementById('questionExplanationInput').value = '';
+  document.getElementById('questionSourceInput').value = '';
+}
+
+function editQuestion(id) {
+  const question = bankQuestions.find(item => questionIdOf(item) === id);
+  if (!question) return;
+  document.getElementById('editingQuestionId').value = id;
+  document.getElementById('questionFormTitle').textContent = 'แก้ไขข้อสอบ';
+  document.getElementById('questionCategoryInput').value = String(question.categoryId);
+  document.getElementById('questionDifficultyInput').value = question.difficulty;
+  document.getElementById('questionActiveInput').checked = question.isActive;
+  document.getElementById('questionTextInput').value = question.questionText;
+  question.choices.forEach((choice, index) => { document.getElementById(`choiceInput${index}`).value = choice; });
+  document.getElementById('correctAnswerIndexInput').value = String(question.correctAnswerIndex);
+  document.getElementById('questionExplanationInput').value = question.explanation || '';
+  document.getElementById('questionSourceInput').value = question.source || '';
+  document.getElementById('questionFormTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function viewQuestion(id) {
+  const question = bankQuestions.find(item => questionIdOf(item) === id);
+  if (!question) return;
+  const labels = ['A', 'B', 'C', 'D'];
+  const detail = document.getElementById('questionDetail');
+  detail.textContent = `${question.questionText}\n\n${question.choices.map((choice, index) => `${labels[index]}. ${choice}`).join('\n')}\n\nคำตอบที่ถูก: ${labels[question.correctAnswerIndex]}\nคำอธิบาย: ${question.explanation || '—'}\nแหล่งที่มา: ${question.source || '—'}`;
+  detail.style.display = 'block';
+}
+
+async function saveQuestion() {
+  const id = document.getElementById('editingQuestionId').value;
+  const categoryId = document.getElementById('questionCategoryInput').value;
+  const questionText = document.getElementById('questionTextInput').value.trim();
+  const choices = [0, 1, 2, 3].map(index => document.getElementById(`choiceInput${index}`).value.trim());
+  const correctAnswerIndex = Number(document.getElementById('correctAnswerIndexInput').value);
+  const explanation = document.getElementById('questionExplanationInput').value.trim();
+  const difficulty = document.getElementById('questionDifficultyInput').value;
+  const source = document.getElementById('questionSourceInput').value.trim();
+  const isActive = document.getElementById('questionActiveInput').checked;
+  if (!categoryId || !questionText || choices.some(choice => !choice) || !Number.isInteger(correctAnswerIndex) || correctAnswerIndex < 0 || correctAnswerIndex > 3) {
+    showQuestionBankError('กรุณากรอกหมวด คำถาม ตัวเลือกทั้ง 4 และคำตอบที่ถูกต้องให้ครบ');
+    return;
+  }
+  try {
+    await adminRequest(id ? `/api/questions/${id}` : '/api/questions', {
+      method: id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoryId, questionText, choices, correctAnswerIndex, explanation, difficulty, source, isActive }),
+    });
+    resetQuestionForm();
+    await renderQuestionBank();
+  } catch (error) { showQuestionBankError(error.message); }
+}
+
+async function toggleQuestion(id) {
+  const question = bankQuestions.find(item => questionIdOf(item) === id);
+  if (!question) return;
+  try {
+    await adminRequest(`/api/questions/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: !question.isActive }) });
+    await renderQuestionBank();
+  } catch (error) { showQuestionBankError(error.message); }
+}
+
+async function deleteQuestionFromBank(id) {
+  if (!confirm('ต้องการลบข้อสอบนี้ใช่หรือไม่? การลบไม่สามารถย้อนกลับได้')) return;
+  try {
+    await adminRequest(`/api/questions/${id}`, { method: 'DELETE' });
+    await renderQuestionBank();
+  } catch (error) { showQuestionBankError(error.message); }
+}
+
+async function loadImportFile() {
+  const file = document.getElementById('questionImportFile').files[0];
+  if (!file) return;
+  try { document.getElementById('questionImportInput').value = await file.text(); }
+  catch (error) { showQuestionBankError('ไม่สามารถอ่านไฟล์ JSON ได้'); }
+}
+
+async function importQuestions() {
+  const result = document.getElementById('importResult');
+  let payload;
+  try {
+    payload = JSON.parse(document.getElementById('questionImportInput').value);
+    if (!Array.isArray(payload)) throw new Error();
+  } catch (error) {
+    result.textContent = 'รูปแบบ JSON ไม่ถูกต้อง ต้องเป็น array ของข้อสอบ';
+    result.style.display = 'block';
+    return;
+  }
+  try {
+    const response = await adminRequest('/api/questions/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    result.textContent = `Import สำเร็จ ${response.imported} ข้อ · ไม่สำเร็จ ${response.failed} ข้อ${response.errors.length ? ` (${response.errors.slice(0, 3).map(error => `รายการ ${error.index + 1}: ${error.error}`).join(' | ')})` : ''}`;
+    result.style.display = 'block';
+    await renderQuestionBank();
+  } catch (error) { showQuestionBankError(error.message); }
+}
+
+async function exportQuestions() {
+  try {
+    const params = new URLSearchParams({ isActive: document.getElementById('exportActiveOnly').checked ? 'true' : 'all' });
+    const categoryId = document.getElementById('questionFilterCategory').value;
+    if (categoryId) params.set('categoryId', categoryId);
+    const questions = await adminRequest(`/api/questions?${params.toString()}`);
+    const categoryNames = Object.fromEntries(bankCategories.map(category => [categoryIdOf(category), category.name]));
+    const exportData = questions.map(question => ({
+      categoryName: categoryNames[String(question.categoryId)] || '',
+      questionText: question.questionText,
+      choices: question.choices,
+      correctAnswerIndex: question.correctAnswerIndex,
+      explanation: question.explanation || '',
+      difficulty: question.difficulty,
+      source: question.source || '',
+      isActive: question.isActive,
+    }));
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'krupuchuay-questions.json';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  } catch (error) { showQuestionBankError(error.message); }
+}
+
+// ===== EXAM SETS =====
+let examSets = [], examSetCategories = [];
+
+function showExamSetsError(message = '') {
+  const element = document.getElementById('examSetsError');
+  element.textContent = message;
+  element.style.display = message ? 'block' : 'none';
+}
+
+function showExamSetAdminError(message = '') {
+  const element = document.getElementById('examSetAdminError');
+  element.textContent = message;
+  element.style.display = message ? 'block' : 'none';
+}
+
+function examSetIdOf(examSet) {
+  return String(examSet._id || examSet.id);
+}
+
+function examSetModeLabel(mode) {
+  return mode === 'exam' ? 'สอบจริง' : 'ฝึกทำ';
+}
+
+function examSetRuleSummary(rules) {
+  return (rules || []).map((rule) => `${bankEscape(rule.categoryName)} ${rule.questionCount} ข้อ`).join(' · ');
+}
+
+async function renderExamSets() {
+  const list = document.getElementById('examSetCards');
+  showExamSetsError();
+  list.innerHTML = '<div class="empty-note">กำลังโหลดชุดข้อสอบ...</div>';
+  try {
+    const response = await fetch('/api/exam-sets', { headers: jwtHeaders() });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(response.status === 401 ? 'กรุณาเข้าสู่ระบบใหม่' : (data.error || 'ไม่สามารถโหลดชุดข้อสอบได้'));
+    examSets = data;
+    if (!examSets.length) {
+      list.innerHTML = '<div class="empty-note">ยังไม่มีชุดข้อสอบที่เปิดใช้งาน</div>';
+      return;
+    }
+    list.innerHTML = examSets.map((examSet) => {
+      const id = examSetIdOf(examSet);
+      return `<article class="exam-set-card"><div><h3>${bankEscape(examSet.title)}</h3><p>${bankEscape(examSet.description || 'ไม่มีคำอธิบายเพิ่มเติม')}</p></div><div class="exam-set-meta"><span>${examSetModeLabel(examSet.mode)}</span><span>${examSet.totalQuestions} ข้อ</span><span>${examSet.timeLimitMinutes} นาที</span><span>ผ่าน ${examSet.passingScorePercent}%</span></div><div class="exam-set-meta"><span>${examSetRuleSummary(examSet.categoryRules)}</span></div><button class="btn btn-primary" onclick="startExamSet('${id}')">เริ่ม${examSet.mode === 'exam' ? 'สอบจริง' : 'ฝึกทำ'}</button></article>`;
+    }).join('');
+  } catch (error) {
+    list.innerHTML = '';
+    showExamSetsError(error.message || 'ไม่สามารถโหลดชุดข้อสอบได้');
+  }
+}
+
+function ruleCategoryOptions(selectedId = '') {
+  const options = examSetCategories.map((category) => {
+    const id = categoryIdOf(category);
+    return `<option value="${id}">${bankEscape(category.name)}${category.isActive ? '' : ' (ปิดใช้งาน)'}</option>`;
+  }).join('');
+  return `<option value="">เลือกหมวดข้อสอบ</option>${options}`;
+}
+
+function addExamSetRule(rule = {}) {
+  const container = document.getElementById('examSetRules');
+  const row = document.createElement('div');
+  row.className = 'exam-rule-row';
+  row.innerHTML = `<select class="exam-set-rule-category" onchange="updateExamSetRuleTotal()">${ruleCategoryOptions(String(rule.categoryId || ''))}</select><input class="exam-set-rule-count" type="number" min="1" max="200" value="${Number.isInteger(rule.questionCount) ? rule.questionCount : 1}" oninput="updateExamSetRuleTotal()"><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.exam-rule-row').remove();updateExamSetRuleTotal()">ลบ</button>`;
+  const select = row.querySelector('.exam-set-rule-category');
+  select.value = String(rule.categoryId || '');
+  container.appendChild(row);
+  updateExamSetRuleTotal();
+}
+
+function updateExamSetRuleTotal() {
+  const totalInput = document.getElementById('examSetTotalInput');
+  const expected = Number(totalInput.value) || 0;
+  const actual = [...document.querySelectorAll('.exam-set-rule-count')].reduce((total, input) => total + (Number(input.value) || 0), 0);
+  const label = document.getElementById('examSetRuleTotal');
+  label.textContent = `รวม ${actual} / ${expected} ข้อ`;
+  label.classList.toggle('is-invalid', actual !== expected);
+}
+
+function resetExamSetForm() {
+  document.getElementById('editingExamSetId').value = '';
+  document.getElementById('examSetFormTitle').textContent = 'สร้างชุดข้อสอบใหม่';
+  document.getElementById('examSetTitleInput').value = '';
+  document.getElementById('examSetDescriptionInput').value = '';
+  document.getElementById('examSetModeInput').value = 'exam';
+  document.getElementById('examSetTotalInput').value = '50';
+  document.getElementById('examSetTimeInput').value = '60';
+  document.getElementById('examSetPassingInput').value = '60';
+  document.getElementById('examSetActiveInput').checked = true;
+  document.getElementById('examSetRandomQuestionsInput').checked = true;
+  document.getElementById('examSetRandomChoicesInput').checked = false;
+  document.getElementById('examSetExplanationInput').checked = true;
+  document.getElementById('examSetRules').innerHTML = '';
+  if (examSetCategories.length) addExamSetRule();
+  else updateExamSetRuleTotal();
+}
+
+async function renderExamSetAdmin() {
+  try {
+    showExamSetAdminError();
+    const [categories, sets] = await Promise.all([
+      adminRequest('/api/categories?includeInactive=true'),
+      adminRequest('/api/exam-sets?includeInactive=true'),
+    ]);
+    examSetCategories = categories;
+    examSets = sets;
+    if (!document.getElementById('editingExamSetId').value && !document.querySelector('.exam-set-rule-row')) resetExamSetForm();
+    renderManagedExamSets();
+  } catch (error) {
+    showExamSetAdminError(error.message || 'ไม่สามารถโหลดข้อมูลชุดข้อสอบได้');
+  }
+}
+
+function renderManagedExamSets() {
+  const list = document.getElementById('examSetManagerList');
+  if (!examSets.length) {
+    list.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted)">ยังไม่มีชุดข้อสอบ</td></tr>';
+    return;
+  }
+  list.innerHTML = examSets.map((examSet) => {
+    const id = examSetIdOf(examSet);
+    const status = examSet.isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
+    const statusClass = examSet.isActive ? 'status-approved' : 'status-rejected';
+    const ruleLines = (examSet.categoryRules || []).map((rule) => `${bankEscape(rule.categoryName)} ${rule.questionCount}`).join('<br>');
+    return `<tr><td><strong>${bankEscape(examSet.title)}</strong><br><span style="color:var(--muted)">${bankEscape(examSet.description || '—')}</span></td><td>${examSetModeLabel(examSet.mode)}</td><td>${examSet.totalQuestions} ข้อ<br>${examSet.timeLimitMinutes} นาที</td><td>${examSet.passingScorePercent}%</td><td>${ruleLines}</td><td><span class="status-badge ${statusClass}">${status}</span></td><td><div class="bank-actions"><button class="btn btn-secondary btn-sm" onclick="editExamSet('${id}')">แก้ไข</button><button class="btn btn-danger btn-sm" onclick="toggleExamSet('${id}')">${examSet.isActive ? 'ปิดใช้' : 'เปิดใช้'}</button><button class="btn btn-danger btn-sm" onclick="deleteExamSet('${id}')">ปิดใช้งาน</button></div></td></tr>`;
+  }).join('');
+}
+
+function editExamSet(id) {
+  const examSet = examSets.find((item) => examSetIdOf(item) === id);
+  if (!examSet) return;
+  document.getElementById('editingExamSetId').value = id;
+  document.getElementById('examSetFormTitle').textContent = 'แก้ไขชุดข้อสอบ';
+  document.getElementById('examSetTitleInput').value = examSet.title;
+  document.getElementById('examSetDescriptionInput').value = examSet.description || '';
+  document.getElementById('examSetModeInput').value = examSet.mode;
+  document.getElementById('examSetTotalInput').value = examSet.totalQuestions;
+  document.getElementById('examSetTimeInput').value = examSet.timeLimitMinutes;
+  document.getElementById('examSetPassingInput').value = examSet.passingScorePercent;
+  document.getElementById('examSetActiveInput').checked = examSet.isActive;
+  document.getElementById('examSetRandomQuestionsInput').checked = examSet.randomizeQuestions;
+  document.getElementById('examSetRandomChoicesInput').checked = examSet.randomizeChoices;
+  document.getElementById('examSetExplanationInput').checked = examSet.showExplanationAfterSubmit;
+  document.getElementById('examSetRules').innerHTML = '';
+  (examSet.categoryRules || []).forEach((rule) => addExamSetRule(rule));
+  updateExamSetRuleTotal();
+  document.getElementById('examSetFormTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function saveExamSet() {
+  const id = document.getElementById('editingExamSetId').value;
+  const title = document.getElementById('examSetTitleInput').value.trim();
+  const totalQuestions = Number(document.getElementById('examSetTotalInput').value);
+  const categoryRules = [...document.querySelectorAll('.exam-rule-row')].map((row) => ({
+    categoryId: row.querySelector('.exam-set-rule-category').value,
+    questionCount: Number(row.querySelector('.exam-set-rule-count').value),
+  }));
+  const ruleTotal = categoryRules.reduce((total, rule) => total + (Number.isInteger(rule.questionCount) ? rule.questionCount : 0), 0);
+  if (!title || !Number.isInteger(totalQuestions) || totalQuestions < 1 || categoryRules.length === 0 || categoryRules.some((rule) => !rule.categoryId || !Number.isInteger(rule.questionCount) || rule.questionCount < 1)) {
+    showExamSetAdminError('กรุณาระบุชื่อ จำนวนข้อ และสัดส่วนหมวดข้อสอบให้ครบถ้วน');
+    return;
+  }
+  if (ruleTotal !== totalQuestions) {
+    showExamSetAdminError('ผลรวมจำนวนข้อในสัดส่วนหมวดต้องเท่ากับจำนวนข้อรวม');
+    return;
+  }
+  const payload = {
+    title,
+    description: document.getElementById('examSetDescriptionInput').value.trim(),
+    mode: document.getElementById('examSetModeInput').value,
+    totalQuestions,
+    timeLimitMinutes: Number(document.getElementById('examSetTimeInput').value),
+    passingScorePercent: Number(document.getElementById('examSetPassingInput').value),
+    isActive: document.getElementById('examSetActiveInput').checked,
+    randomizeQuestions: document.getElementById('examSetRandomQuestionsInput').checked,
+    randomizeChoices: document.getElementById('examSetRandomChoicesInput').checked,
+    showExplanationAfterSubmit: document.getElementById('examSetExplanationInput').checked,
+    categoryRules,
+  };
+  try {
+    await adminRequest(id ? `/api/exam-sets/${id}` : '/api/exam-sets', {
+      method: id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    resetExamSetForm();
+    await renderExamSetAdmin();
+  } catch (error) {
+    showExamSetAdminError(error.message || 'ไม่สามารถบันทึกชุดข้อสอบได้');
+  }
+}
+
+async function toggleExamSet(id) {
+  const examSet = examSets.find((item) => examSetIdOf(item) === id);
+  if (!examSet) return;
+  try {
+    await adminRequest(`/api/exam-sets/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: !examSet.isActive }) });
+    await renderExamSetAdmin();
+  } catch (error) { showExamSetAdminError(error.message); }
+}
+
+async function deleteExamSet(id) {
+  if (!confirm('ต้องการปิดใช้งานชุดข้อสอบนี้หรือไม่? ข้อมูลและประวัติการสอบจะยังคงอยู่')) return;
+  try {
+    await adminRequest(`/api/exam-sets/${id}`, { method: 'DELETE' });
+    await renderExamSetAdmin();
+  } catch (error) { showExamSetAdminError(error.message); }
 }
 
 // ===== INIT =====

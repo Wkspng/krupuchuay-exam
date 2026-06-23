@@ -1,20 +1,17 @@
 [
   {
-    "username": "admin",
-    "password": "admin1234",
-    "name": "ผู้ดูแลระบบ",
+    "username": "legacy-admin",
+    "name": "ข้อมูลตัวอย่างแบบ legacy — ไม่สามารถใช้เข้าสู่ระบบได้",
     "role": "admin"
   },
   {
-    "username": "student01",
-    "password": "thammasat01",
-    "name": "นางสาว สมหญิง ใจดี",
+    "username": "legacy-user-01",
+    "name": "ข้อมูลตัวอย่างแบบ legacy — ไม่สามารถใช้เข้าสู่ระบบได้",
     "role": "user"
   },
   {
-    "username": "student02",
-    "password": "thammasat02",
-    "name": "นาย วิชัย มุ่งดี",
+    "username": "legacy-user-02",
+    "name": "ข้อมูลตัวอย่างแบบ legacy — ไม่สามารถใช้เข้าสู่ระบบได้",
     "role": "user"
   }
 ]

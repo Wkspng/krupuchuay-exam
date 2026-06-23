@@ -1,203 +1,192 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
+
+const cors = require('cors');
 const express = require('express');
 const session = require('express-session');
-const path = require('path');
+const helmet = require('helmet');
+const { MongoStore } = require('connect-mongo');
 const mongoose = require('mongoose');
-const User = require('./models/User');
+const path = require('path');
+const rateLimit = require('express-rate-limit');
 const History = require('./models/History');
+const healthRoutes = require('./routes/healthRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
+const questionRoutes = require('./routes/questionRoutes');
+const examAttemptRoutes = require('./routes/examAttemptRoutes');
+const examSetRoutes = require('./routes/examSetRoutes');
+const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
+const statsRoutes = require('./routes/statsRoutes');
+const { getJwtSecret } = require('./middleware/auth');
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI;
+const PORT = Number(process.env.PORT) || 5000;
+const isProduction = process.env.NODE_ENV === 'production';
 
-if (!MONGODB_URI) {
-  console.error('❌ ไม่พบ MONGODB_URI กรุณาตั้งค่า MONGODB_URI ใน environment variables (.env สำหรับ local หรือ Railway Variables สำหรับ production)');
-} else {
-  mongoose.connect(MONGODB_URI)
-    .then(async () => {
-      console.log('✅ เชื่อมต่อ MongoDB สำเร็จ');
-      await seedAdmin();
-    })
-    .catch(err => {
-      console.error('❌ เชื่อมต่อ MongoDB ไม่สำเร็จ:', err.message);
-    });
+function allowedOrigins() {
+  const origins = (process.env.CORS_ORIGIN || (isProduction ? '' : `http://localhost:${PORT}`))
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  return origins;
 }
 
-async function seedAdmin() {
-  const adminExists = await User.findOne({ username: 'admin' });
-  if (!adminExists) {
-    await User.create({
-      username: 'admin',
-      password: 'admin1234',
-      name: 'ผู้ดูแลระบบ',
-      role: 'admin',
-      status: 'approved',
-    });
-    console.log('สร้างบัญชี admin เริ่มต้นแล้ว');
-  }
+function validateRuntimeConfiguration() {
+  if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required');
+  // getJwtSecret enforces the production requirement and emits a safe development warning.
+  getJwtSecret();
+
+  const origins = allowedOrigins();
+  if (isProduction && origins.length === 0) throw new Error('CORS_ORIGIN is required in production');
+  if (isProduction && !process.env.SESSION_SECRET) throw new Error('SESSION_SECRET is required in production');
+  if (origins.includes('*')) throw new Error('CORS_ORIGIN must not contain a wildcard origin');
 }
 
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(session({
-  secret: 'krupuchuay-secret-2024',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
-}));
+function sessionSecret() {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  console.warn('SESSION_SECRET is not set; using the development JWT signing key for sessions.');
+  return getJwtSecret();
+}
 
-// บล็อกทุก request ที่ต้องใช้ฐานข้อมูลถ้ายังเชื่อมต่อ MongoDB ไม่สำเร็จ
+async function connectDB() {
+  await mongoose.connect(process.env.MONGODB_URI);
+  console.log('MongoDB connected: krupuchuay');
+}
+
 function requireDb(req, res, next) {
   if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ error: 'เซิร์ฟเวอร์ยังไม่ได้เชื่อมต่อฐานข้อมูล กรุณาตั้งค่า MONGODB_URI ใน environment variables' });
+    return res.status(503).json({ error: 'Database is temporarily unavailable' });
   }
-  next();
+  return next();
 }
 
-function requireAuth(req, res, next) {
-  if (!req.session.user) return res.status(401).json({ error: 'ไม่ได้เข้าสู่ระบบ' });
-  next();
+function requireSessionAuth(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: 'Authentication is required' });
+  return next();
 }
 
-function requireAdmin(req, res, next) {
-  if (!req.session.user || req.session.user.role !== 'admin')
-    return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึง' });
-  next();
+function createApp() {
+  const app = express();
+  const origins = allowedOrigins();
+  const authRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => req.method === 'OPTIONS',
+    handler: (req, res) => res.status(429).json({ error: 'Too many authentication requests. Please try again later.' }),
+  });
+
+  if (isProduction) app.set('trust proxy', 1);
+
+  // The current frontend intentionally uses inline event handlers. Keep Helmet's
+  // remaining security headers enabled and defer CSP to a future handler refactor.
+  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(cors({
+    origin(origin, callback) {
+      if (!origin || origins.includes(origin)) return callback(null, true);
+      return callback(new Error('Origin is not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  }));
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.static(path.join(__dirname, 'public')));
+  app.use(session({
+    name: 'krupuchuay.sid',
+    secret: sessionSecret(),
+    store: MongoStore.create({ mongoUrl: process.env.MONGODB_URI, collectionName: 'sessions', ttl: 24 * 60 * 60, autoRemove: 'native' }),
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
+    },
+  }));
+
+  app.use('/api', requireDb);
+  app.use('/api/health', healthRoutes);
+  app.use('/api/categories', categoryRoutes);
+  app.use('/api/questions', questionRoutes);
+  app.use('/api/exam-attempts', examAttemptRoutes);
+  app.use('/api/exam-sets', examSetRoutes);
+  app.use('/api/stats', statsRoutes);
+  app.use('/api/auth', authRateLimiter, authRoutes);
+  app.use('/api/users', userRoutes);
+
+  // These session routes preserve the existing history feature. Login and registration
+  // are intentionally served only by /api/auth, which uses bcrypt and JWT.
+  app.get('/api/session', (req, res) => {
+    if (req.session.user) return res.json(req.session.user);
+    return res.status(401).json({ error: 'Authentication is required' });
+  });
+
+  app.post('/api/logout', (req, res) => {
+    req.session.destroy(() => res.json({ success: true }));
+  });
+
+  app.get('/api/history/:username', requireSessionAuth, async (req, res) => {
+    try {
+      const { username } = req.params;
+      if (req.session.user.username !== username && req.session.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      const history = await History.find({ username }).sort({ createdAt: -1 }).limit(100);
+      return res.json(history);
+    } catch (error) {
+      return res.status(500).json({ error: 'Unable to load history' });
+    }
+  });
+
+  app.post('/api/history/:username', requireSessionAuth, async (req, res) => {
+    try {
+      const { username } = req.params;
+      if (req.session.user.username !== username) return res.status(403).json({ error: 'Access denied' });
+      await History.create({ ...req.body, username });
+      return res.json({ success: true });
+    } catch (error) {
+      return res.status(500).json({ error: 'Unable to save history' });
+    }
+  });
+
+  app.delete('/api/history/:username', requireSessionAuth, async (req, res) => {
+    try {
+      const { username } = req.params;
+      if (req.session.user.username !== username && req.session.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      await History.deleteMany({ username });
+      return res.json({ success: true });
+    } catch (error) {
+      return res.status(500).json({ error: 'Unable to delete history' });
+    }
+  });
+
+  app.use((error, req, res, next) => {
+    if (error?.type === 'entity.too.large') return res.status(413).json({ error: 'Request body is too large' });
+    if (error?.message === 'Origin is not allowed by CORS') return res.status(403).json({ error: 'Origin is not allowed' });
+    console.error('Unhandled request error');
+    return res.status(500).json({ error: 'An unexpected server error occurred' });
+  });
+
+  return app;
 }
 
-app.use('/api', requireDb);
-
-// GET /api/session
-app.get('/api/session', (req, res) => {
-  if (req.session.user) res.json(req.session.user);
-  else res.status(401).json({ error: 'ไม่ได้เข้าสู่ระบบ' });
-});
-
-// POST /api/login
-app.post('/api/login', async (req, res) => {
+async function startServer() {
   try {
-    const { username, password } = req.body;
-    if (!username || !password) return res.status(400).json({ error: 'กรุณากรอกข้อมูล' });
-    const user = await User.findOne({ username, password });
-    if (!user) return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
-    if (user.status === 'pending') return res.status(403).json({ error: '⏳ บัญชีของคุณยังไม่ได้รับการอนุมัติจากแอดมิน กรุณารอการอนุมัติ' });
-    if (user.status === 'rejected') return res.status(403).json({ error: '❌ บัญชีของคุณไม่ได้รับการอนุมัติ กรุณาติดต่อแอดมิน' });
-    req.session.user = { username: user.username, name: user.name, role: user.role };
-    res.json({ username: user.username, name: user.name, role: user.role });
-  } catch (e) { res.status(500).json({ error: 'เกิดข้อผิดพลาดของเซิร์ฟเวอร์' }); }
-});
+    validateRuntimeConfiguration();
+    const app = createApp();
+    await connectDB();
+    app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+  } catch (error) {
+    const safeMessage = ['MONGODB_URI is required', 'JWT_SECRET is required in production', 'SESSION_SECRET is required in production', 'CORS_ORIGIN is required in production', 'CORS_ORIGIN must not contain a wildcard origin'].includes(error.message)
+      ? error.message
+      : 'Unable to start server. Check the database connection and deployment configuration.';
+    console.error(`Server startup failed: ${safeMessage}`);
+    process.exit(1);
+  }
+}
 
-// POST /api/register
-app.post('/api/register', async (req, res) => {
-  try {
-    const { username, password, confirmPassword, name } = req.body;
-    if (!username || !password || !confirmPassword || !name) return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบทุกช่อง' });
-    if (password.length < 6) return res.status(400).json({ error: 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร' });
-    if (password !== confirmPassword) return res.status(400).json({ error: 'รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน' });
-    const exists = await User.findOne({ username });
-    if (exists) return res.status(409).json({ error: 'Username นี้มีอยู่แล้ว' });
-    await User.create({ username, password, name, role: 'user', status: 'pending' });
-    res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: 'เกิดข้อผิดพลาดของเซิร์ฟเวอร์' }); }
-});
-
-// POST /api/logout
-app.post('/api/logout', (req, res) => {
-  req.session.destroy();
-  res.json({ success: true });
-});
-
-// GET /api/history/:username
-app.get('/api/history/:username', requireAuth, async (req, res) => {
-  try {
-    const { username } = req.params;
-    if (req.session.user.username !== username && req.session.user.role !== 'admin')
-      return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
-    const history = await History.find({ username }).sort({ createdAt: -1 }).limit(100);
-    res.json(history);
-  } catch (e) { res.status(500).json({ error: 'เกิดข้อผิดพลาดของเซิร์ฟเวอร์' }); }
-});
-
-// POST /api/history/:username
-app.post('/api/history/:username', requireAuth, async (req, res) => {
-  try {
-    const { username } = req.params;
-    if (req.session.user.username !== username)
-      return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
-    await History.create({ ...req.body, username });
-    res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: 'เกิดข้อผิดพลาดของเซิร์ฟเวอร์' }); }
-});
-
-// DELETE /api/history/:username (admin หรือเจ้าของบัญชี)
-app.delete('/api/history/:username', requireAuth, async (req, res) => {
-  try {
-    const { username } = req.params;
-    if (req.session.user.username !== username && req.session.user.role !== 'admin')
-      return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
-    await History.deleteMany({ username });
-    res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: 'เกิดข้อผิดพลาดของเซิร์ฟเวอร์' }); }
-});
-
-// GET /api/users (admin)
-app.get('/api/users', requireAdmin, async (req, res) => {
-  try {
-    const users = await User.find({}, 'username name role status registeredAt');
-    res.json(users);
-  } catch (e) { res.status(500).json({ error: 'เกิดข้อผิดพลาดของเซิร์ฟเวอร์' }); }
-});
-
-// GET /api/users/pending (admin)
-app.get('/api/users/pending', requireAdmin, async (req, res) => {
-  try {
-    const users = await User.find({ status: 'pending' }, 'username name registeredAt');
-    res.json(users);
-  } catch (e) { res.status(500).json({ error: 'เกิดข้อผิดพลาดของเซิร์ฟเวอร์' }); }
-});
-
-// POST /api/users (admin)
-app.post('/api/users', requireAdmin, async (req, res) => {
-  try {
-    const { username, password, name } = req.body;
-    if (!username || !password || !name) return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
-    const exists = await User.findOne({ username });
-    if (exists) return res.status(409).json({ error: 'Username นี้มีอยู่แล้ว' });
-    await User.create({ username, password, name, role: 'user', status: 'approved' });
-    res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: 'เกิดข้อผิดพลาดของเซิร์ฟเวอร์' }); }
-});
-
-// POST /api/users/:username/approve (admin)
-app.post('/api/users/:username/approve', requireAdmin, async (req, res) => {
-  try {
-    const result = await User.updateOne({ username: req.params.username }, { status: 'approved' });
-    if (result.matchedCount === 0) return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
-    res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: 'เกิดข้อผิดพลาดของเซิร์ฟเวอร์' }); }
-});
-
-// POST /api/users/:username/reject (admin)
-app.post('/api/users/:username/reject', requireAdmin, async (req, res) => {
-  try {
-    const result = await User.updateOne({ username: req.params.username }, { status: 'rejected' });
-    if (result.matchedCount === 0) return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
-    res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: 'เกิดข้อผิดพลาดของเซิร์ฟเวอร์' }); }
-});
-
-// DELETE /api/users/:username (admin)
-app.delete('/api/users/:username', requireAdmin, async (req, res) => {
-  try {
-    const { username } = req.params;
-    if (username === req.session.user.username) return res.status(400).json({ error: 'ไม่สามารถลบบัญชีของตัวเองได้' });
-    const result = await User.deleteOne({ username });
-    if (result.deletedCount === 0) return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
-    res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: 'เกิดข้อผิดพลาดของเซิร์ฟเวอร์' }); }
-});
-
-app.listen(PORT, () => {
-  console.log(`เซิร์ฟเวอร์ทำงานที่ http://localhost:${PORT}`);
-  console.log('กด Ctrl+C เพื่อหยุดเซิร์ฟเวอร์');
-});
+startServer();

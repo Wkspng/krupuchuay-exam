@@ -19,8 +19,8 @@
       <span class="login-tag">📋 ความรอบรู้ · ความสามารถทั่วไป · วิชาชีพครู</span>
     </div>
     <div class="form-group">
-      <label>ชื่อผู้ใช้งาน (Username)</label>
-      <input type="text" id="inputUser" placeholder="กรอก Username" autocomplete="username">
+      <label>อีเมล (Email)</label>
+      <input type="email" id="inputUser" placeholder="กรอกอีเมล" autocomplete="email">
     </div>
     <div class="form-group">
       <label>รหัสผ่าน (Password)</label>
@@ -40,8 +40,8 @@
       <p>กรอกข้อมูลเพื่อสมัครเข้าใช้งานระบบ</p>
     </div>
     <div class="form-group">
-      <label>ชื่อผู้ใช้งาน (Username)</label>
-      <input type="text" id="regUser" placeholder="กรอก Username" autocomplete="username">
+      <label>อีเมล (Email)</label>
+      <input type="email" id="regUser" placeholder="กรอกอีเมล" autocomplete="email">
     </div>
     <div class="form-group">
       <label>รหัสผ่าน (Password)</label>
@@ -73,8 +73,11 @@
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('home')">🏠 หน้าหลัก</button>
     <button class="nav-tab" onclick="showPage('quiz')">📝 ทำข้อสอบ</button>
-    <button class="nav-tab" onclick="showPage('stats')">📊 สถิติ</button>
-    <button class="nav-tab" id="adminTab" onclick="showPage('admin')" style="display:none">⚙️ จัดการ<span class="tab-badge" id="pendingBadge" style="display:none">0</span></button>
+    <button class="nav-tab" onclick="showPage('stats')">📊 ประวัติ / สถิติ</button>
+    <button class="nav-tab" id="examSetsTab" onclick="showPage('exam-sets')" style="display:none">⏱️ ชุดข้อสอบ / โหมดสอบจริง</button>
+    <button class="nav-tab" id="adminTab" onclick="showPage('admin')" style="display:none">⚙️ จัดการผู้ใช้<span class="tab-badge" id="pendingBadge" style="display:none">0</span></button>
+    <button class="nav-tab" id="questionBankTab" onclick="showPage('question-bank')" style="display:none">📚 จัดการคลังข้อสอบ</button>
+    <button class="nav-tab" id="examSetAdminTab" onclick="showPage('exam-set-admin')" style="display:none">🗂️ จัดการชุดข้อสอบ</button>
   </div>
 
   <div class="page active" id="page-home">
@@ -106,7 +109,7 @@
     <p class="page-title">🏆 ผลการทดสอบ</p>
     <div class="result-hero" id="resultCard"></div>
     <div class="stats-grid" id="resultStats"></div>
-    <p class="page-title" style="font-size:17px;margin-bottom:12px;">📋 เฉลยทุกข้อ</p>
+    <p class="page-title" id="resultReviewTitle" style="font-size:17px;margin-bottom:12px;">📋 เฉลยทุกข้อ</p>
     <div id="reviewList"></div>
     <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
       <button class="btn btn-primary" onclick="showPage('home')">เลือกหมวดวิชาใหม่</button>
@@ -115,34 +118,166 @@
   </div>
 
   <div class="page" id="page-stats">
-    <p class="page-title">📊 สถิติการทดสอบ</p>
-    <p class="page-sub">สรุปผลการทดสอบทั้งหมดของบัญชีคุณ</p>
+    <p class="page-title" id="statsPageTitle">📊 ประวัติ / สถิติของฉัน</p>
+    <p class="page-sub" id="statsPageSubtitle">สรุปผลการทำข้อสอบจากคลังข้อสอบ</p>
+    <p class="bank-error" id="statsError" style="display:none"></p>
     <div class="stats-overall" id="statsOverall"></div>
-    <p class="page-title" style="font-size:17px;margin-bottom:12px;">คะแนนเฉลี่ยแยกตามหมวด</p>
-    <div id="barChart"></div>
-    <p class="page-title" style="font-size:17px;margin:22px 0 12px;">ประวัติการทดสอบ</p>
-    <div style="overflow-x:auto;">
-      <table class="history-table">
-        <thead><tr><th>#</th><th>ส่วน</th><th>หมวดวิชา</th><th>คะแนน</th><th>ข้อ</th><th>เวลา</th><th>วันที่</th></tr></thead>
-        <tbody id="historyBody"></tbody>
-      </table>
-    </div>
+    <div class="stats-insights" id="statsInsights"></div>
+    <section class="stats-section">
+      <h3>แนวโน้มคะแนน 10 ครั้งล่าสุด</h3>
+      <div class="score-trend" id="statsTrend"></div>
+    </section>
+    <section class="stats-section">
+      <h3>คะแนนเฉลี่ยแยกตามหมวด</h3>
+      <div id="barChart"></div>
+    </section>
+    <section class="stats-section" id="statsAdminFilters" style="display:none">
+      <h3>ตัวกรองประวัติผู้สอบ</h3>
+      <div class="bank-filter-grid">
+        <select id="statsUserFilter" onchange="loadStatsAttempts()"><option value="">ผู้ใช้ทั้งหมด</option></select>
+        <select id="statsCategoryFilter" onchange="loadStatsAttempts()"><option value="">ทุกหมวดข้อสอบ</option></select>
+        <input type="date" id="statsDateFrom" onchange="loadStatsAttempts()">
+        <input type="date" id="statsDateTo" onchange="loadStatsAttempts()">
+        <button class="btn btn-secondary btn-sm" onclick="exportAttempts()">Export JSON</button>
+      </div>
+    </section>
+    <section class="stats-section" id="statsAdminLeaderboard" style="display:none">
+      <h3>ผู้สอบคะแนนสูง</h3>
+      <div class="bank-table-wrap"><table class="bank-table"><thead><tr><th>ผู้สอบ</th><th>จำนวนครั้ง</th><th>คะแนนเฉลี่ย</th><th>คะแนนสูงสุด</th></tr></thead><tbody id="statsTopUsers"></tbody></table></div>
+    </section>
+    <section class="stats-section">
+      <h3 id="attemptHistoryTitle">ประวัติการทดสอบ</h3>
+      <div style="overflow-x:auto;">
+        <table class="history-table">
+          <thead><tr><th>วันที่</th><th>ผู้สอบ</th><th>หมวด</th><th>ชุดข้อสอบ / ผล</th><th>จำนวนข้อ</th><th>คะแนน</th><th>เวลาที่ใช้</th><th>รายละเอียด</th></tr></thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+      <div class="question-detail" id="attemptDetail" style="display:none"></div>
+    </section>
   </div>
 
   <div class="page" id="page-admin">
     <p class="page-title">⚙️ จัดการผู้ใช้งาน</p>
-    <div class="admin-info">⚠️ หน้านี้สำหรับผู้ดูแลระบบเท่านั้น · ผู้ดูแลเป็นผู้กำหนด Username และ Password ให้ผู้สมัครสอบทุกคน</div>
+    <div class="admin-info">⚠️ หน้านี้สำหรับผู้ดูแลระบบเท่านั้น · จัดการบัญชีผู้ใช้ด้วยอีเมล สถานะอนุมัติ และสิทธิ์การใช้งาน</div>
     <p class="page-title" style="font-size:17px;margin-bottom:12px;">🔔 คำขอสมัครสมาชิกที่รออนุมัติ</p>
     <div class="user-list" id="pendingUserList" style="margin-bottom:24px"></div>
     <p class="page-title" style="font-size:17px;margin-bottom:12px;">รายชื่อผู้ใช้ทั้งหมด</p>
     <div class="user-list" id="userList"></div>
     <p class="page-title" style="font-size:17px;margin:20px 0 12px;">➕ เพิ่มผู้ใช้ใหม่</p>
     <div class="add-user-form">
-      <input type="text" id="newUsername" placeholder="Username">
-      <input type="password" id="newPassword" placeholder="Password">
       <input type="text" id="newName" placeholder="ชื่อ-นามสกุล">
+      <input type="email" id="newEmail" placeholder="Email">
+      <input type="password" id="newPassword" placeholder="Password (อย่างน้อย 6 ตัวอักษร)">
+      <select id="newRole" aria-label="Role">
+        <option value="user">User</option>
+        <option value="admin">Admin</option>
+      </select>
+      <select id="newApprovalStatus" aria-label="สถานะอนุมัติ">
+        <option value="approved">อนุมัติแล้ว</option>
+        <option value="pending">รออนุมัติ</option>
+      </select>
       <button class="btn btn-primary btn-sm" onclick="addUser()">เพิ่มผู้ใช้</button>
     </div>
+  </div>
+
+  <div class="page" id="page-exam-sets">
+    <p class="page-title">⏱️ ชุดข้อสอบ / โหมดสอบจริง</p>
+    <p class="page-sub">เลือกชุดข้อสอบจำลอง กำหนดเวลารวม และบันทึกผลสอบลงในประวัติของคุณ</p>
+    <p class="bank-error" id="examSetsError" style="display:none"></p>
+    <div class="exam-set-card-grid" id="examSetCards"></div>
+  </div>
+
+  <div class="page" id="page-exam-set-admin">
+    <p class="page-title">🗂️ จัดการชุดข้อสอบ</p>
+    <p class="page-sub">สร้างชุดฝึกทำหรือชุดสอบจริง พร้อมกำหนดจำนวนข้อและสัดส่วนของแต่ละหมวด</p>
+    <p class="bank-error" id="examSetAdminError" style="display:none"></p>
+
+    <section class="bank-section">
+      <div class="bank-section-heading"><h3 id="examSetFormTitle">สร้างชุดข้อสอบใหม่</h3><button class="btn btn-secondary btn-sm" onclick="resetExamSetForm()">+ สร้างชุดใหม่</button></div>
+      <div class="bank-form-grid">
+        <input type="hidden" id="editingExamSetId">
+        <input type="text" id="examSetTitleInput" placeholder="ชื่อชุดข้อสอบ" class="full-row">
+        <textarea id="examSetDescriptionInput" placeholder="คำอธิบาย" class="full-row"></textarea>
+        <select id="examSetModeInput"><option value="exam">สอบจริง</option><option value="practice">ฝึกทำ</option></select>
+        <input type="number" id="examSetTotalInput" placeholder="จำนวนข้อรวม" min="1" max="200" value="50" oninput="updateExamSetRuleTotal()">
+        <input type="number" id="examSetTimeInput" placeholder="เวลาสอบ (นาที)" min="1" max="600" value="60">
+        <input type="number" id="examSetPassingInput" placeholder="คะแนนผ่าน (%)" min="0" max="100" value="60">
+        <label class="check-label"><input type="checkbox" id="examSetActiveInput" checked> เปิดใช้งาน</label>
+        <label class="check-label"><input type="checkbox" id="examSetRandomQuestionsInput" checked> สุ่มลำดับข้อสอบ</label>
+        <label class="check-label"><input type="checkbox" id="examSetRandomChoicesInput"> สุ่มลำดับตัวเลือก</label>
+        <label class="check-label"><input type="checkbox" id="examSetExplanationInput" checked> แสดงเฉลยหลังส่งข้อสอบ</label>
+      </div>
+      <div class="exam-rule-header"><h4>สัดส่วนหมวดข้อสอบ</h4><span id="examSetRuleTotal" class="exam-rule-total">รวม 0 / 50 ข้อ</span><button class="btn btn-secondary btn-sm" onclick="addExamSetRule()">+ เพิ่มหมวด</button></div>
+      <div id="examSetRules" class="exam-rule-list"></div>
+      <div class="bank-actions" style="margin-top:14px"><button class="btn btn-primary" onclick="saveExamSet()">บันทึกชุดข้อสอบ</button><button class="btn btn-secondary" onclick="resetExamSetForm()">ยกเลิก</button></div>
+    </section>
+
+    <section class="bank-section">
+      <h3>ชุดข้อสอบทั้งหมด</h3>
+      <div class="bank-table-wrap"><table class="bank-table"><thead><tr><th>ชื่อชุด</th><th>โหมด</th><th>ข้อ / เวลา</th><th>คะแนนผ่าน</th><th>สัดส่วนหมวด</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody id="examSetManagerList"></tbody></table></div>
+    </section>
+  </div>
+
+  <div class="page" id="page-question-bank">
+    <p class="page-title">📚 จัดการคลังข้อสอบ</p>
+    <p class="page-sub">เพิ่ม แก้ไข ปิดใช้งาน และนำเข้าข้อสอบสำหรับผู้ดูแลระบบ</p>
+    <p class="bank-error" id="questionBankError" style="display:none"></p>
+
+    <section class="bank-section">
+      <div class="bank-section-heading"><h3>หมวดข้อสอบ</h3><button class="btn btn-secondary btn-sm" onclick="resetCategoryForm()">+ เพิ่มหมวดใหม่</button></div>
+      <div class="bank-form-grid">
+        <input type="hidden" id="editingCategoryId">
+        <input type="text" id="categoryNameInput" placeholder="ชื่อหมวด">
+        <input type="text" id="categoryDescriptionInput" placeholder="คำอธิบาย">
+        <input type="number" id="categoryOrderInput" placeholder="ลำดับ" min="0" value="0">
+        <label class="check-label"><input type="checkbox" id="categoryActiveInput" checked> เปิดใช้งาน</label>
+        <button class="btn btn-primary btn-sm" onclick="saveCategory()">บันทึกหมวด</button>
+      </div>
+      <div class="bank-table-wrap"><table class="bank-table"><thead><tr><th>ชื่อหมวด</th><th>คำอธิบาย</th><th>ลำดับ</th><th>สถานะ</th><th>จำนวนข้อ</th><th>จัดการ</th></tr></thead><tbody id="categoryManagerList"></tbody></table></div>
+    </section>
+
+    <section class="bank-section">
+      <div class="bank-section-heading"><h3>คลังข้อสอบ</h3><button class="btn btn-secondary btn-sm" onclick="resetQuestionForm()">+ เพิ่มข้อสอบใหม่</button></div>
+      <div class="bank-filter-grid">
+        <select id="questionFilterCategory" onchange="loadManagedQuestions()"></select>
+        <select id="questionFilterDifficulty" onchange="loadManagedQuestions()"><option value="">ทุกระดับความยาก</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select>
+        <select id="questionFilterActive" onchange="loadManagedQuestions()"><option value="all">ทุกสถานะ</option><option value="true">เปิดใช้งาน</option><option value="false">ปิดใช้งาน</option></select>
+        <input type="search" id="questionSearch" placeholder="ค้นหาคำถาม" oninput="debouncedQuestionSearch()">
+        <label class="check-label"><input type="checkbox" id="exportActiveOnly" checked> Export เฉพาะที่เปิดใช้</label>
+        <button class="btn btn-secondary btn-sm" onclick="exportQuestions()">Export JSON</button>
+      </div>
+      <div class="bank-table-wrap"><table class="bank-table"><thead><tr><th>หมวด</th><th>คำถาม</th><th>ระดับ</th><th>สถานะ</th><th>วันที่สร้าง</th><th>จัดการ</th></tr></thead><tbody id="questionManagerList"></tbody></table></div>
+      <div id="questionDetail" class="question-detail" style="display:none"></div>
+    </section>
+
+    <section class="bank-section">
+      <h3 id="questionFormTitle">เพิ่มข้อสอบใหม่</h3>
+      <div class="bank-form-grid question-form">
+        <input type="hidden" id="editingQuestionId">
+        <select id="questionCategoryInput"></select>
+        <select id="questionDifficultyInput"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select>
+        <label class="check-label"><input type="checkbox" id="questionActiveInput" checked> เปิดใช้งาน</label>
+        <textarea id="questionTextInput" class="full-row" placeholder="คำถาม"></textarea>
+        <input type="text" id="choiceInput0" class="full-row" placeholder="ตัวเลือก A">
+        <input type="text" id="choiceInput1" class="full-row" placeholder="ตัวเลือก B">
+        <input type="text" id="choiceInput2" class="full-row" placeholder="ตัวเลือก C">
+        <input type="text" id="choiceInput3" class="full-row" placeholder="ตัวเลือก D">
+        <select id="correctAnswerIndexInput"><option value="0">คำตอบที่ถูก: A</option><option value="1">คำตอบที่ถูก: B</option><option value="2">คำตอบที่ถูก: C</option><option value="3">คำตอบที่ถูก: D</option></select>
+        <input type="text" id="questionSourceInput" placeholder="แหล่งที่มา (ไม่บังคับ)">
+        <textarea id="questionExplanationInput" class="full-row" placeholder="คำอธิบายเฉลย (ไม่บังคับ)"></textarea>
+        <div class="bank-actions full-row"><button class="btn btn-primary" onclick="saveQuestion()">บันทึกข้อสอบ</button><button class="btn btn-secondary" onclick="resetQuestionForm()">ยกเลิก</button></div>
+      </div>
+    </section>
+
+    <section class="bank-section">
+      <h3>Import ข้อสอบ JSON</h3>
+      <p class="page-sub">ต้องมี categoryName ที่ตรงกับหมวดเดิม ระบบจะไม่สร้างหมวดใหม่อัตโนมัติ</p>
+      <input type="file" id="questionImportFile" accept="application/json,.json" onchange="loadImportFile()">
+      <textarea id="questionImportInput" class="import-area" placeholder='วาง JSON array ที่นี่'></textarea>
+      <div class="bank-actions"><button class="btn btn-primary" onclick="importQuestions()">Import JSON</button></div>
+      <p class="import-result" id="importResult" style="display:none"></p>
+    </section>
   </div>
 </div>
 
