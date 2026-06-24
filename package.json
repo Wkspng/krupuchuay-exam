@@ -14,7 +14,9 @@
     "create-admin": "node scripts/createAdmin.js",
     "approve-user": "node scripts/approveUser.js",
     "migrate:firestore:dry": "node scripts/migrateMongoToFirestore.js --dry-run",
-    "migrate:firestore": "node scripts/migrateMongoToFirestore.js --execute"
+    "migrate:firestore": "node scripts/migrateMongoToFirestore.js --execute",
+    "sanity-check": "node scripts/sanityCheckMigration.js",
+    "test:firestore": "node scripts/testFirestoreEndToEnd.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
