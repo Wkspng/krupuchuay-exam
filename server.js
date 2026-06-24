@@ -2,7 +2,6 @@ require('dotenv').config({ quiet: true });
 
 const cors = require('cors');
 const express = require('express');
-const session = require('express-session');
 const helmet = require('helmet');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
@@ -15,7 +14,7 @@ const examSetRoutes = require('./routes/examSetRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const statsRoutes = require('./routes/statsRoutes');
-const { getJwtSecret, authenticateToken, optionalAuthenticateToken } = require('./middleware/auth');
+const { authenticateToken, optionalAuthenticateToken } = require('./middleware/auth');
 
 const PORT = Number(process.env.PORT) || 5000;
 const isProduction = process.env.NODE_ENV === 'production';
@@ -29,19 +28,9 @@ function allowedOrigins() {
 }
 
 function validateRuntimeConfiguration() {
-  // getJwtSecret enforces the production requirement and emits a safe development warning.
-  getJwtSecret();
-
   const origins = allowedOrigins();
   if (isProduction && origins.length === 0) throw new Error('CORS_ORIGIN is required in production');
-  if (isProduction && !process.env.SESSION_SECRET) throw new Error('SESSION_SECRET is required in production');
   if (origins.includes('*')) throw new Error('CORS_ORIGIN must not contain a wildcard origin');
-}
-
-function sessionSecret() {
-  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
-  console.warn('SESSION_SECRET is not set; using the development JWT signing key for sessions.');
-  return getJwtSecret();
 }
 
 function createApp() {
@@ -72,18 +61,6 @@ function createApp() {
   }));
   app.use(express.json({ limit: '1mb' }));
   app.use(express.static(path.join(__dirname, 'public')));
-  app.use(session({
-    name: 'krupuchuay.sid',
-    secret: sessionSecret(),
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000,
-    },
-  }));
 
   app.use('/api/health', healthRoutes);
   app.use('/api/categories', categoryRoutes);
@@ -94,16 +71,18 @@ function createApp() {
   app.use('/api/auth', authRateLimiter, authRoutes);
   app.use('/api/users', userRoutes);
 
-  // These session routes preserve the existing history feature. Login and registration
-  // are intentionally served only by /api/auth, which uses bcrypt and JWT.
+  // Stateless session endpoint – verifies the Firebase ID Token from the
+  // Authorization header and returns the caller's Firestore user profile.
   app.get('/api/session', optionalAuthenticateToken, (req, res) => {
     if (req.user) return res.json(req.user);
-    if (req.session.user) return res.json(req.session.user);
     return res.status(401).json({ error: 'Authentication is required' });
   });
 
+  // Logout is handled entirely on the client via firebase.auth().signOut().
+  // This endpoint is kept as a no-op for backwards compatibility so older
+  // cached frontend bundles do not encounter a 404.
   app.post('/api/logout', (req, res) => {
-    req.session.destroy(() => res.json({ success: true }));
+    return res.json({ success: true });
   });
 
   app.get('/api/history/:username', authenticateToken, async (req, res) => {
@@ -176,7 +155,7 @@ async function startServer() {
     const app = createApp();
     app.listen(PORT, '0.0.0.0', () => console.log(`Server listening on port ${PORT}`));
   } catch (error) {
-    const safeMessage = ['JWT_SECRET is required in production', 'SESSION_SECRET is required in production', 'CORS_ORIGIN is required in production', 'CORS_ORIGIN must not contain a wildcard origin'].includes(error.message)
+    const safeMessage = ['CORS_ORIGIN is required in production', 'CORS_ORIGIN must not contain a wildcard origin'].includes(error.message)
       ? error.message
       : 'Unable to start server. Check the deployment configuration.';
     console.error(`Server startup failed: ${safeMessage}`);

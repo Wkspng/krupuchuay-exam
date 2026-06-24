@@ -1,69 +1,51 @@
-const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
 const { auth: firebaseAuth, db: firestoreDb } = require('../src/firebaseAdmin');
 
-// A temporary key keeps local development usable without changing .env. Set JWT_SECRET in
-// production so tokens remain valid after a server restart.
-const developmentJwtSecret = crypto.randomBytes(48).toString('hex');
-let hasWarnedAboutDevelopmentSecret = false;
+/**
+ * Verify a Firebase ID Token and load the user profile from Firestore.
+ * Returns a normalized user object or throws on invalid/expired tokens.
+ */
+async function verifyFirebaseToken(token) {
+  const decodedToken = await firebaseAuth.verifyIdToken(token);
+  const uid = decodedToken.uid;
 
-function getJwtSecret() {
-  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET is required in production');
-  }
-  if (!hasWarnedAboutDevelopmentSecret) {
-    console.warn('JWT_SECRET is not set; a temporary development signing key is being used.');
-    hasWarnedAboutDevelopmentSecret = true;
-  }
-  return developmentJwtSecret;
-}
+  const doc = await firestoreDb.collection('users').doc(uid).get();
+  const profile = doc.exists ? doc.data() : null;
 
-async function verifyFirebaseOrJwt(token) {
-  // First attempt: Verify via Firebase Admin SDK
-  try {
-    const decodedToken = await firebaseAuth.verifyIdToken(token);
-    // Find user profile in Firestore
-    const doc = await firestoreDb.collection('users').doc(decodedToken.uid).get();
-    const profile = doc.exists ? doc.data() : null;
-    
-    // If no Firestore profile exists yet, return a basic structure to allow register/login flows to complete
-    if (!profile) {
-      return {
-        sub: decodedToken.uid,
-        uid: decodedToken.uid,
-        email: decodedToken.email,
-        name: decodedToken.name || '',
-        role: 'user',
-        approvalStatus: 'pending',
-        isApproved: false
-      };
-    }
-    
-    const approvalStatus = profile.approvalStatus || profile.status || (profile.isApproved ? 'approved' : 'pending');
+  // If no Firestore profile exists yet, return a basic structure to allow
+  // register/login flows to complete before the profile is written.
+  if (!profile) {
     return {
-      sub: decodedToken.uid,
-      uid: decodedToken.uid,
-      email: profile.email || decodedToken.email,
-      name: profile.name || decodedToken.name || '',
-      role: profile.role || 'user',
-      approvalStatus,
-      isApproved: approvalStatus === 'approved'
+      sub: uid,
+      uid,
+      email: decodedToken.email,
+      name: decodedToken.name || '',
+      role: 'user',
+      approvalStatus: 'pending',
+      isApproved: false,
     };
-  } catch (firebaseErr) {
-    // Second attempt: Fallback to local JWT
-    try {
-      const decoded = jwt.verify(token, getJwtSecret());
-      return decoded;
-    } catch (jwtErr) {
-      if (jwtErr.message === 'JWT_SECRET is required in production') {
-        throw new Error('JWT_SECRET is required in production');
-      }
-      throw new Error('Invalid or expired authentication token');
-    }
   }
+
+  const approvalStatus =
+    profile.approvalStatus ||
+    profile.status ||
+    (profile.isApproved ? 'approved' : 'pending');
+
+  return {
+    sub: uid,
+    uid,
+    email: profile.email || decodedToken.email,
+    name: profile.name || decodedToken.name || '',
+    username: profile.email || decodedToken.email,
+    role: profile.role || 'user',
+    approvalStatus,
+    isApproved: approvalStatus === 'approved',
+  };
 }
 
+/**
+ * Express middleware – requires a valid Firebase ID Token in the
+ * Authorization header.  Blocks pending/rejected users with 403.
+ */
 async function authenticateToken(req, res, next) {
   const authorization = req.headers.authorization || '';
   const [scheme, token] = authorization.split(' ');
@@ -73,8 +55,8 @@ async function authenticateToken(req, res, next) {
   }
 
   try {
-    const user = await verifyFirebaseOrJwt(token);
-    
+    const user = await verifyFirebaseToken(token);
+
     if (user.approvalStatus === 'pending') {
       return res.status(403).json({ error: 'บัญชีของคุณยังไม่ได้รับการอนุมัติจากแอดมิน กรุณารอการอนุมัติ' });
     }
@@ -85,13 +67,14 @@ async function authenticateToken(req, res, next) {
     req.user = user;
     return next();
   } catch (error) {
-    if (error.message === 'JWT_SECRET is required in production') {
-      return res.status(500).json({ error: 'JWT authentication is not configured' });
-    }
     return res.status(401).json({ error: 'Invalid or expired authentication token' });
   }
 }
 
+/**
+ * Express middleware – same as authenticateToken but allows unauthenticated
+ * requests through (req.user will be null).
+ */
 async function optionalAuthenticateToken(req, res, next) {
   const authorization = req.headers.authorization || '';
   if (!authorization) return next();
@@ -102,7 +85,7 @@ async function optionalAuthenticateToken(req, res, next) {
   }
 
   try {
-    const user = await verifyFirebaseOrJwt(token);
+    const user = await verifyFirebaseToken(token);
     if (user.approvalStatus === 'pending') {
       return res.status(403).json({ error: 'บัญชีของคุณยังไม่ได้รับการอนุมัติจากแอดมิน กรุณารอการอนุมัติ' });
     }
@@ -123,5 +106,4 @@ function requireAdmin(req, res, next) {
   return next();
 }
 
-module.exports = { authenticateToken, optionalAuthenticateToken, requireAdmin, getJwtSecret };
-
+module.exports = { authenticateToken, optionalAuthenticateToken, requireAdmin };

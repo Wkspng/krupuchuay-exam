@@ -100,18 +100,7 @@ async function login(req, res) {
       userProfile = doc.data();
     }
 
-    const approvalStatus = userProfile.approvalStatus || userProfile.status || (userProfile.isApproved ? 'approved' : 'pending');
-
-    // Set express session (in-memory dev fallback)
-    req.session.user = {
-      username: userProfile.email || userEmail,
-      name: userProfile.name,
-      role: userProfile.role || 'user',
-      approvalStatus,
-      isApproved: approvalStatus === 'approved',
-    };
-
-    return res.json({ token: idToken, user: publicUser(userProfile) });
+    return res.json({ user: publicUser(userProfile) });
   } catch (error) {
     console.error('Firebase login error:', error);
     return res.status(500).json({ error: 'Unable to log in' });

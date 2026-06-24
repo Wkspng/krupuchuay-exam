@@ -1241,7 +1241,7 @@ async function doLogout() {
   clearInterval(timerInterval);
   localStorage.removeItem('authToken');
   localStorage.removeItem('authUser');
-  try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+  try { await fetch('/api/logout', { method: 'POST' }); } catch (e) { /* no-op, kept for cache compat */ }
   if (auth) {
     try { await auth.signOut(); } catch (e) {}
   }
