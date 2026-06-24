@@ -7,3 +7,6 @@ node_modules
 README.md
 DEPLOYMENT.md
 .claude
+*serviceAccount*.json
+firebase-adminsdk*.json
+service-account*.json

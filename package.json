@@ -12,7 +12,9 @@
     "seed": "node scripts/seed.js",
     "seed:examsets": "node scripts/seedExamSets.js",
     "create-admin": "node scripts/createAdmin.js",
-    "approve-user": "node scripts/approveUser.js"
+    "approve-user": "node scripts/approveUser.js",
+    "migrate:firestore:dry": "node scripts/migrateMongoToFirestore.js --dry-run",
+    "migrate:firestore": "node scripts/migrateMongoToFirestore.js --execute"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -22,6 +24,7 @@
     "express": "^4.18.2",
     "express-rate-limit": "^8.5.2",
     "express-session": "^1.17.3",
+    "firebase-admin": "^14.0.0",
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.1"

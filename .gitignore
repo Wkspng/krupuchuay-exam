@@ -5,3 +5,6 @@ dist
 build
 .DS_Store
 *.log
+*serviceAccount*.json
+firebase-adminsdk*.json
+service-account*.json

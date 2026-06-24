@@ -1,0 +1,48 @@
+rules_version = '2';
+
+// DRAFT ONLY: deploy after Firebase Authentication and custom admin claims are in place.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    match /users/{userId} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == userId);
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if isAdmin() || resource.data.isActive == true;
+      allow write: if isAdmin();
+    }
+
+    match /questions/{questionId} {
+      allow read: if isAdmin() || resource.data.isActive == true;
+      allow write: if isAdmin();
+    }
+
+    match /examSets/{examSetId} {
+      allow read: if isAdmin() || resource.data.isActive == true;
+      allow write: if isAdmin();
+    }
+
+    match /examAttempts/{attemptId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /statsDaily/{date} {
+      allow read, write: if isAdmin();
+    }
+
+    match /appSettings/{document} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
