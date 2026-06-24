@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 // ===== DATA STRUCTURE =====
 const PARTS = [
@@ -952,41 +952,210 @@ function jwtHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// ===== FIREBASE INITIALIZATION & STATE LISTENER =====
+let auth;
+
+async function initializeAppAuth() {
+  try {
+    const res = await fetch('/api/auth/firebase-config');
+    if (!res.ok) {
+      console.error('Failed to load Firebase config from server');
+      return;
+    }
+    const config = await res.json();
+    firebase.initializeApp(config);
+    auth = firebase.auth();
+    
+    // Listen for authentication state changes:
+    auth.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const idToken = await firebaseUser.getIdToken();
+          localStorage.setItem('authToken', idToken);
+          
+          const sessionRes = await fetch('/api/session', {
+            headers: { 'Authorization': `Bearer ${idToken}` }
+          });
+          if (sessionRes.ok) {
+            const user = await sessionRes.json();
+            localStorage.setItem('authUser', JSON.stringify(user));
+            currentUser = user;
+            
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('appScreen').style.display = 'block';
+            document.getElementById('userBadge').textContent = '👤 ' + user.name;
+            document.getElementById('examSetsTab').style.display = '';
+            
+            if (user.role === 'admin') {
+              document.getElementById('adminTab').style.display = '';
+              document.getElementById('questionBankTab').style.display = '';
+              document.getElementById('examSetAdminTab').style.display = '';
+              renderPendingUsers();
+            }
+            
+            checkApprovalStatus();
+            await buildHome();
+            if (document.getElementById('page-home').classList.contains('active')) {
+              showPage('home');
+            }
+          }
+        } catch (err) {
+          console.error('Error during auth state change processing:', err);
+        }
+      } else {
+        currentUser = null;
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('authUser');
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('appScreen').style.display = 'none';
+        document.getElementById('examSetsTab').style.display = 'none';
+        document.getElementById('adminTab').style.display = 'none';
+        document.getElementById('questionBankTab').style.display = 'none';
+        document.getElementById('examSetAdminTab').style.display = 'none';
+        
+        const pendingNotice = document.getElementById('pendingNotice');
+        if (pendingNotice) pendingNotice.style.display = 'none';
+      }
+    });
+  } catch (err) {
+    console.error('Error initializing Firebase:', err);
+  }
+}
+
+function checkApprovalStatus() {
+  const isApproved = currentUser && (currentUser.approvalStatus === 'approved' || currentUser.isApproved);
+  const status = currentUser ? (currentUser.approvalStatus || 'pending') : 'pending';
+  let pendingNotice = document.getElementById('pendingNotice');
+  
+  if (currentUser && !isApproved) {
+    const navTabs = document.querySelector('.nav-tabs');
+    if (navTabs) navTabs.style.display = 'none';
+    
+    let title = 'บัญชีของคุณอยู่ระหว่างรอการอนุมัติ';
+    let desc = 'กรุณารอผู้ดูแลระบบ (Admin) อนุมัติการเข้าใช้งานระบบทดสอบข้อสอบ';
+    let icon = '⏳';
+    
+    if (status === 'rejected') {
+      title = 'บัญชีของคุณไม่ได้รับการอนุมัติ';
+      desc = 'ขออภัย บัญชีของคุณไม่ผ่านการอนุมัติเข้าใช้งานระบบ กรุณาติดต่อแอดมิน';
+      icon = '❌';
+    }
+    
+    if (!pendingNotice) {
+      pendingNotice = document.createElement('div');
+      pendingNotice.id = 'pendingNotice';
+      pendingNotice.innerHTML = `
+        <div class="pending-notice-box" style="max-width: 500px; margin: 80px auto; padding: 40px; background: var(--card); border: 1px solid var(--border); border-radius: 24px; text-align: center; box-shadow: 0 16px 48px rgba(0,0,0,0.4);">
+          <span style="font-size: 64px; display: block; margin-bottom: 20px;">${icon}</span>
+          <h2 style="margin-bottom: 12px; font-family: 'Prompt', sans-serif; color: var(--gold);">${title}</h2>
+          <p style="color: var(--text); margin-bottom: 16px; font-size: 15px;">${desc}</p>
+          <p style="color: var(--muted); font-size: 13px; margin-bottom: 24px;">อีเมลบัญชี: ${currentUser.email || currentUser.username}</p>
+          <div style="display: flex; justify-content: center; gap: 10px;">
+            <button class="btn btn-primary" onclick="refreshUserStatus()">🔄 ตรวจสอบสถานะ</button>
+            <button class="btn btn-secondary" onclick="doLogout()">ออกจากระบบ</button>
+          </div>
+        </div>
+      `;
+      document.getElementById('appScreen').appendChild(pendingNotice);
+    } else {
+      pendingNotice.querySelector('span').textContent = icon;
+      pendingNotice.querySelector('h2').textContent = title;
+      pendingNotice.querySelector('p').textContent = desc;
+      pendingNotice.querySelector('.pending-notice-box p:nth-child(4)').textContent = 'อีเมลบัญชี: ' + (currentUser.email || currentUser.username);
+      pendingNotice.style.display = 'block';
+    }
+    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+  } else {
+    const navTabs = document.querySelector('.nav-tabs');
+    if (navTabs) navTabs.style.display = 'flex';
+    if (pendingNotice) pendingNotice.style.display = 'none';
+  }
+}
+
+async function refreshUserStatus() {
+  if (auth && auth.currentUser) {
+    try {
+      const idToken = await auth.currentUser.getIdToken(true);
+      localStorage.setItem('authToken', idToken);
+      
+      const sessionRes = await fetch('/api/session', {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
+      if (sessionRes.ok) {
+        const user = await sessionRes.json();
+        localStorage.setItem('authUser', JSON.stringify(user));
+        currentUser = user;
+        checkApprovalStatus();
+        if (currentUser.approvalStatus === 'approved' || currentUser.isApproved) {
+          await buildHome();
+          showPage('home');
+        } else {
+          alert('⏳ บัญชีของคุณยังไม่ได้รับการอนุมัติ กรุณารอแอดมินดำเนินการ');
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      alert('เกิดข้อผิดพลาดในการตรวจสอบสถานะ กรุณาลองใหม่');
+    }
+  }
+}
+
 // ===== AUTH =====
 async function doLogin() {
   const email = document.getElementById('inputUser').value.trim();
   const password = document.getElementById('inputPass').value;
   const errMsg = document.getElementById('errMsg');
   errMsg.style.display = 'none';
+  
+  if (!auth) {
+    errMsg.textContent = '❌ ระบบ Authentication ยังไม่พร้อมใช้งาน';
+    errMsg.style.display = 'block';
+    return;
+  }
+  
   try {
+    const userCredential = await auth.signInWithEmailAndPassword(email, password);
+    const idToken = await userCredential.user.getIdToken();
+    
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ idToken })
     });
+    
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       errMsg.textContent = data.error || '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง';
       errMsg.style.display = 'block';
+      await auth.signOut();
       return;
     }
+    
     const { token, user } = await res.json();
     localStorage.setItem('authToken', token);
     localStorage.setItem('authUser', JSON.stringify(user));
     currentUser = user;
+    
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appScreen').style.display = 'block';
     document.getElementById('userBadge').textContent = '👤 ' + user.name;
     document.getElementById('examSetsTab').style.display = '';
+    
     if (user.role === 'admin') {
       document.getElementById('adminTab').style.display = '';
       document.getElementById('questionBankTab').style.display = '';
       document.getElementById('examSetAdminTab').style.display = '';
       renderPendingUsers();
     }
+    
+    checkApprovalStatus();
     await buildHome();
     showPage('home');
-  } catch (e) { errMsg.textContent = '❌ เกิดข้อผิดพลาด กรุณาลองใหม่'; errMsg.style.display = 'block'; }
+  } catch (e) {
+    console.error(e);
+    errMsg.textContent = '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือระบบขัดข้อง';
+    errMsg.style.display = 'block';
+  }
 }
 
 function showRegisterScreen() {
@@ -1014,6 +1183,7 @@ async function doRegister() {
   const successMsg = document.getElementById('regSuccessMsg');
   errMsg.style.display = 'none';
   successMsg.style.display = 'none';
+  
   if (!email || !password || !confirmPassword || !name) {
     errMsg.textContent = 'กรุณากรอกข้อมูลให้ครบทุกช่อง';
     errMsg.style.display = 'block';
@@ -1029,18 +1199,41 @@ async function doRegister() {
     errMsg.style.display = 'block';
     return;
   }
+  
+  if (!auth) {
+    errMsg.textContent = 'ระบบ Authentication ยังไม่พร้อมใช้งาน';
+    errMsg.style.display = 'block';
+    return;
+  }
+  
   try {
+    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+    await userCredential.user.updateProfile({ displayName: name });
+    const idToken = await userCredential.user.getIdToken();
+    
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, name })
+      body: JSON.stringify({ name, idToken })
     });
+    
     const data = await res.json();
-    if (!res.ok) { errMsg.textContent = data.error || 'เกิดข้อผิดพลาด กรุณาลองใหม่'; errMsg.style.display = 'block'; return; }
+    if (!res.ok) {
+      errMsg.textContent = data.error || 'เกิดข้อผิดพลาด กรุณาลองใหม่';
+      errMsg.style.display = 'block';
+      try { await userCredential.user.delete(); } catch (delErr) {}
+      return;
+    }
+    
     successMsg.textContent = 'สมัครสมาชิกสำเร็จ กรุณารอแอดมินอนุมัติบัญชีก่อนเข้าใช้งาน';
     successMsg.style.display = 'block';
+    await auth.signOut();
     setTimeout(backToLogin, 2000);
-  } catch (e) { errMsg.textContent = 'เกิดข้อผิดพลาด กรุณาลองใหม่'; errMsg.style.display = 'block'; }
+  } catch (e) {
+    console.error(e);
+    errMsg.textContent = e.message || 'เกิดข้อผิดพลาดในการสมัครสมาชิก';
+    errMsg.style.display = 'block';
+  }
 }
 
 async function doLogout() {
@@ -1049,6 +1242,9 @@ async function doLogout() {
   localStorage.removeItem('authToken');
   localStorage.removeItem('authUser');
   try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+  if (auth) {
+    try { await auth.signOut(); } catch (e) {}
+  }
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('appScreen').style.display = 'none';
   document.getElementById('examSetsTab').style.display = 'none';
@@ -1058,27 +1254,12 @@ async function doLogout() {
   document.getElementById('inputUser').value = '';
   document.getElementById('inputPass').value = '';
   document.getElementById('errMsg').style.display = 'none';
+  const pendingNotice = document.getElementById('pendingNotice');
+  if (pendingNotice) pendingNotice.style.display = 'none';
 }
 
 async function checkSession() {
-  try {
-    const res = await fetch('/api/session');
-    if (!res.ok) return;
-    const user = await res.json();
-    currentUser = user;
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('appScreen').style.display = 'block';
-    document.getElementById('userBadge').textContent = '👤 ' + user.name;
-    document.getElementById('examSetsTab').style.display = '';
-    if (user.role === 'admin') {
-      document.getElementById('adminTab').style.display = '';
-      document.getElementById('questionBankTab').style.display = '';
-      document.getElementById('examSetAdminTab').style.display = '';
-      renderPendingUsers();
-    }
-    await buildHome();
-    showPage('home');
-  } catch (e) {}
+  await initializeAppAuth();
 }
 
 // ===== NAV =====

@@ -1,9 +1,10 @@
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const { auth: firebaseAuth, db: firestoreDb } = require('../src/firebaseAdmin');
 
 function isValidId(id) {
-  return mongoose.isValidObjectId(id);
+  return typeof id === 'string' && id.trim().length > 0;
 }
 
 function isValidEmail(email) {
@@ -16,25 +17,17 @@ function approvalStatusOf(user) {
 
 function publicUser(user) {
   return {
-    id: user._id.toString(),
+    id: user.uid || (user._id ? user._id.toString() : ''),
+    uid: user.uid || (user._id ? user._id.toString() : ''),
     name: user.name,
     email: user.email || null,
-    username: user.username,
+    username: user.username || user.email,
     role: user.role,
     approvalStatus: approvalStatusOf(user),
     isApproved: approvalStatusOf(user) === 'approved',
-    createdAt: user.createdAt || user.registeredAt,
-    updatedAt: user.updatedAt,
+    createdAt: user.createdAt ? (user.createdAt.toDate ? user.createdAt.toDate() : user.createdAt) : null,
+    updatedAt: user.updatedAt ? (user.updatedAt.toDate ? user.updatedAt.toDate() : user.updatedAt) : null,
     isLegacy: !user.email,
-  };
-}
-
-function pendingFilter() {
-  return {
-    $or: [
-      { approvalStatus: 'pending' },
-      { approvalStatus: { $exists: false }, status: 'pending' },
-    ],
   };
 }
 
@@ -44,24 +37,30 @@ function validApprovalStatus(value) {
 
 async function getUsers(req, res) {
   try {
-    const users = await User.find(
-      {},
-      'username name email role status approvalStatus isApproved createdAt updatedAt registeredAt',
-    ).sort({ createdAt: -1, registeredAt: -1 });
+    const snapshot = await firestoreDb.collection('users').get();
+    const users = [];
+    snapshot.forEach(doc => {
+      users.push({ id: doc.id, ...doc.data() });
+    });
+    users.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     return res.json(users.map(publicUser));
   } catch (error) {
+    console.error('getUsers error:', error);
     return res.status(500).json({ error: 'Unable to load users' });
   }
 }
 
 async function getPendingUsers(req, res) {
   try {
-    const users = await User.find(
-      pendingFilter(),
-      'username name email role status approvalStatus isApproved createdAt updatedAt registeredAt',
-    ).sort({ createdAt: -1, registeredAt: -1 });
+    const snapshot = await firestoreDb.collection('users').where('approvalStatus', '==', 'pending').get();
+    const users = [];
+    snapshot.forEach(doc => {
+      users.push({ id: doc.id, ...doc.data() });
+    });
+    users.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     return res.json(users.map(publicUser));
   } catch (error) {
+    console.error('getPendingUsers error:', error);
     return res.status(500).json({ error: 'Unable to load pending users' });
   }
 }
@@ -76,25 +75,55 @@ async function createUser(req, res) {
 
   const normalizedEmail = email.trim().toLowerCase();
   try {
-    const existingUser = await User.exists({ $or: [{ email: normalizedEmail }, { username: normalizedEmail }] });
-    if (existingUser) return res.status(409).json({ error: 'อีเมลนี้มีอยู่แล้ว' });
+    const userSnapshot = await firestoreDb.collection('users').where('email', '==', normalizedEmail).limit(1).get();
+    if (!userSnapshot.empty) {
+      return res.status(409).json({ error: 'อีเมลนี้มีอยู่แล้ว' });
+    }
 
-    const isApproved = approvalStatus === 'approved';
-    const user = await User.create({
-      username: normalizedEmail,
-      name: name.trim(),
+    const firebaseUser = await firebaseAuth.createUser({
       email: normalizedEmail,
-      passwordHash: await bcrypt.hash(password, 12),
-      role,
-      status: approvalStatus,
-      approvalStatus,
-      isApproved,
-      approvedAt: isApproved ? new Date() : undefined,
-      approvedBy: isApproved ? req.user.sub : undefined,
+      password,
+      displayName: name.trim()
     });
-    return res.status(201).json(publicUser(user));
+    const uid = firebaseUser.uid;
+
+    if (role === 'admin') {
+      await firebaseAuth.setCustomUserClaims(uid, { admin: true });
+    }
+
+    const userProfile = {
+      uid,
+      email: normalizedEmail,
+      name: name.trim(),
+      role,
+      approvalStatus,
+      isApproved: approvalStatus === 'approved',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    await firestoreDb.collection('users').doc(uid).set(userProfile);
+
+    try {
+      await User.create({
+        username: normalizedEmail,
+        name: name.trim(),
+        email: normalizedEmail,
+        role,
+        status: approvalStatus,
+        approvalStatus,
+        isApproved: approvalStatus === 'approved',
+        approvedAt: approvalStatus === 'approved' ? new Date() : undefined,
+      });
+    } catch (mongoErr) {
+      console.warn('MongoDB sync failed during createUser:', mongoErr.message);
+    }
+
+    return res.status(201).json(publicUser(userProfile));
   } catch (error) {
-    if (error.code === 11000) return res.status(409).json({ error: 'อีเมลนี้มีอยู่แล้ว' });
+    console.error('createUser error:', error);
+    if (error.code === 'auth/email-already-in-use') {
+      return res.status(409).json({ error: 'อีเมลนี้มีอยู่แล้ว' });
+    }
     return res.status(500).json({ error: 'Unable to create user' });
   }
 }
@@ -109,40 +138,85 @@ async function updateUser(req, res) {
   if (approvalStatus !== undefined && !validApprovalStatus(approvalStatus)) return res.status(400).json({ error: 'สถานะอนุมัติไม่ถูกต้อง' });
 
   try {
-    const user = await User.findById(req.params.id).select('+passwordHash');
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user._id.toString() === req.user.sub && (role !== undefined || approvalStatus !== undefined)) {
+    const userRef = firestoreDb.collection('users').doc(req.params.id);
+    const doc = await userRef.get();
+    if (!doc.exists) return res.status(404).json({ error: 'User not found' });
+    const currentData = doc.data();
+
+    if (req.params.id === req.user.sub && (role !== undefined || approvalStatus !== undefined)) {
       return res.status(400).json({ error: 'ไม่สามารถเปลี่ยน role หรือสถานะของบัญชีตัวเองได้' });
     }
-    if (user.role === 'admin' && role === 'user' && await User.countDocuments({ role: 'admin' }) <= 1) {
-      return res.status(400).json({ error: 'ไม่สามารถเปลี่ยน role ของผู้ดูแลคนสุดท้ายได้' });
-    }
 
-    if (email !== undefined) {
-      const normalizedEmail = email.trim().toLowerCase();
-      const duplicate = await User.exists({
-        _id: { $ne: user._id },
-        $or: [{ email: normalizedEmail }, { username: normalizedEmail }],
-      });
-      if (duplicate) return res.status(409).json({ error: 'อีเมลนี้มีอยู่แล้ว' });
-      user.email = normalizedEmail;
-    }
-    if (name !== undefined) user.name = name.trim();
-    if (password !== undefined) user.passwordHash = await bcrypt.hash(password, 12);
-    if (role !== undefined) user.role = role;
-    if (approvalStatus !== undefined) {
-      user.status = approvalStatus;
-      user.approvalStatus = approvalStatus;
-      user.isApproved = approvalStatus === 'approved';
-      if (approvalStatus === 'approved') {
-        user.approvedAt = new Date();
-        user.approvedBy = req.user.sub;
+    if (role === 'user' && currentData.role === 'admin') {
+      const adminsSnapshot = await firestoreDb.collection('users').where('role', '==', 'admin').get();
+      if (adminsSnapshot.size <= 1) {
+        return res.status(400).json({ error: 'ไม่สามารถเปลี่ยน role ของผู้ดูแลคนสุดท้ายได้' });
       }
     }
-    await user.save();
-    return res.json(publicUser(user));
+
+    const firebaseUpdate = {};
+    if (email !== undefined) firebaseUpdate.email = email.trim().toLowerCase();
+    if (password !== undefined) firebaseUpdate.password = password;
+    if (name !== undefined) firebaseUpdate.displayName = name.trim();
+    if (Object.keys(firebaseUpdate).length > 0) {
+      await firebaseAuth.updateUser(req.params.id, firebaseUpdate);
+    }
+
+    if (role !== undefined && role !== currentData.role) {
+      if (role === 'admin') {
+        await firebaseAuth.setCustomUserClaims(req.params.id, { admin: true });
+      } else {
+        await firebaseAuth.setCustomUserClaims(req.params.id, { admin: false });
+      }
+    }
+
+    const firestoreUpdate = { updatedAt: new Date() };
+    if (name !== undefined) firestoreUpdate.name = name.trim();
+    if (email !== undefined) firestoreUpdate.email = email.trim().toLowerCase();
+    if (role !== undefined) firestoreUpdate.role = role;
+    if (approvalStatus !== undefined) {
+      firestoreUpdate.approvalStatus = approvalStatus;
+      firestoreUpdate.isApproved = approvalStatus === 'approved';
+      if (approvalStatus === 'approved') {
+        firestoreUpdate.approvedAt = new Date();
+        firestoreUpdate.approvedBy = req.user.sub;
+      }
+    }
+    await userRef.update(firestoreUpdate);
+
+    try {
+      const mongoUser = await User.findOne({ $or: [{ email: currentData.email }, { username: currentData.email }] });
+      if (mongoUser) {
+        if (name !== undefined) mongoUser.name = name.trim();
+        if (email !== undefined) {
+          mongoUser.email = email.trim().toLowerCase();
+          mongoUser.username = email.trim().toLowerCase();
+        }
+        if (role !== undefined) mongoUser.role = role;
+        if (approvalStatus !== undefined) {
+          mongoUser.status = approvalStatus;
+          mongoUser.approvalStatus = approvalStatus;
+          mongoUser.isApproved = approvalStatus === 'approved';
+          if (approvalStatus === 'approved') {
+            mongoUser.approvedAt = new Date();
+            if (mongoose.isValidObjectId(req.user.sub)) {
+              mongoUser.approvedBy = req.user.sub;
+            }
+          }
+        }
+        await mongoUser.save();
+      }
+    } catch (mongoErr) {
+      console.warn('MongoDB sync failed during updateUser:', mongoErr.message);
+    }
+
+    const updatedDoc = await userRef.get();
+    return res.json(publicUser({ uid: req.params.id, ...updatedDoc.data() }));
   } catch (error) {
-    if (error.code === 11000) return res.status(409).json({ error: 'อีเมลนี้มีอยู่แล้ว' });
+    console.error('updateUser error:', error);
+    if (error.code === 'auth/email-already-in-use') {
+      return res.status(409).json({ error: 'อีเมลนี้มีอยู่แล้ว' });
+    }
     return res.status(500).json({ error: 'Unable to update user' });
   }
 }
@@ -151,21 +225,48 @@ async function updateApproval(req, res, approvalStatus) {
   if (!isValidId(req.params.id)) return res.status(400).json({ error: 'Invalid user id' });
 
   try {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.role === 'admin') return res.status(400).json({ error: 'ไม่สามารถเปลี่ยนสถานะบัญชีผู้ดูแลระบบผ่าน endpoint นี้ได้' });
+    const userRef = firestoreDb.collection('users').doc(req.params.id);
+    const doc = await userRef.get();
+    if (!doc.exists) return res.status(404).json({ error: 'User not found' });
+    const currentData = doc.data();
 
-    user.approvalStatus = approvalStatus;
-    user.isApproved = approvalStatus === 'approved';
-    // Keep the original field synchronized for the existing session-based routes.
-    user.status = approvalStatus;
-    if (approvalStatus === 'approved') {
-      user.approvedAt = new Date();
-      user.approvedBy = req.user.sub;
+    if (currentData.role === 'admin') {
+      return res.status(400).json({ error: 'ไม่สามารถเปลี่ยนสถานะบัญชีผู้ดูแลระบบผ่าน endpoint นี้ได้' });
     }
-    await user.save();
-    return res.json(publicUser(user));
+
+    const updateData = {
+      approvalStatus,
+      isApproved: approvalStatus === 'approved',
+      updatedAt: new Date(),
+    };
+    if (approvalStatus === 'approved') {
+      updateData.approvedAt = new Date();
+      updateData.approvedBy = req.user.sub;
+    }
+    await userRef.update(updateData);
+
+    try {
+      const mongoUser = await User.findOne({ $or: [{ email: currentData.email }, { username: currentData.email }] });
+      if (mongoUser) {
+        mongoUser.status = approvalStatus;
+        mongoUser.approvalStatus = approvalStatus;
+        mongoUser.isApproved = approvalStatus === 'approved';
+        if (approvalStatus === 'approved') {
+          mongoUser.approvedAt = new Date();
+          if (mongoose.isValidObjectId(req.user.sub)) {
+            mongoUser.approvedBy = req.user.sub;
+          }
+        }
+        await mongoUser.save();
+      }
+    } catch (mongoErr) {
+      console.warn('MongoDB sync failed during updateApproval:', mongoErr.message);
+    }
+
+    const updatedDoc = await userRef.get();
+    return res.json(publicUser({ uid: req.params.id, ...updatedDoc.data() }));
   } catch (error) {
+    console.error('updateApproval error:', error);
     return res.status(500).json({ error: 'Unable to update user approval' });
   }
 }
@@ -175,14 +276,30 @@ async function deleteUser(req, res) {
   if (req.params.id === req.user.sub) return res.status(400).json({ error: 'ไม่สามารถลบบัญชีผู้ดูแลของตัวเองได้' });
 
   try {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.role === 'admin' && await User.countDocuments({ role: 'admin' }) <= 1) {
-      return res.status(400).json({ error: 'ไม่สามารถลบบัญชีผู้ดูแลคนสุดท้ายได้' });
+    const userRef = firestoreDb.collection('users').doc(req.params.id);
+    const doc = await userRef.get();
+    if (!doc.exists) return res.status(404).json({ error: 'User not found' });
+    const currentData = doc.data();
+
+    if (currentData.role === 'admin') {
+      const adminsSnapshot = await firestoreDb.collection('users').where('role', '==', 'admin').get();
+      if (adminsSnapshot.size <= 1) {
+        return res.status(400).json({ error: 'ไม่สามารถลบบัญชีผู้ดูแลคนสุดท้ายได้' });
+      }
     }
-    await User.deleteOne({ _id: user._id });
+
+    await firebaseAuth.deleteUser(req.params.id);
+    await userRef.delete();
+
+    try {
+      await User.deleteOne({ $or: [{ email: currentData.email }, { username: currentData.email }] });
+    } catch (mongoErr) {
+      console.warn('MongoDB sync failed during deleteUser:', mongoErr.message);
+    }
+
     return res.json({ success: true });
   } catch (error) {
+    console.error('deleteUser error:', error);
     return res.status(500).json({ error: 'Unable to delete user' });
   }
 }

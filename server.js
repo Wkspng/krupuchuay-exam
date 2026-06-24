@@ -17,7 +17,7 @@ const examSetRoutes = require('./routes/examSetRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const statsRoutes = require('./routes/statsRoutes');
-const { getJwtSecret } = require('./middleware/auth');
+const { getJwtSecret, optionalAuthenticateToken } = require('./middleware/auth');
 
 const PORT = Number(process.env.PORT) || 5000;
 const isProduction = process.env.NODE_ENV === 'production';
@@ -118,7 +118,8 @@ function createApp() {
 
   // These session routes preserve the existing history feature. Login and registration
   // are intentionally served only by /api/auth, which uses bcrypt and JWT.
-  app.get('/api/session', (req, res) => {
+  app.get('/api/session', optionalAuthenticateToken, (req, res) => {
+    if (req.user) return res.json(req.user);
     if (req.session.user) return res.json(req.session.user);
     return res.status(401).json({ error: 'Authentication is required' });
   });
