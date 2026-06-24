@@ -1,8 +1,5 @@
 require('dotenv').config({ quiet: true });
 
-const bcrypt = require('bcryptjs');
-const mongoose = require('mongoose');
-const User = require('../models/User');
 const { auth: firebaseAuth, db: firestoreDb } = require('../src/firebaseAdmin');
 
 function argumentValue(name) {
@@ -69,48 +66,6 @@ async function main() {
       updatedAt: new Date(),
     });
     console.log('Firestore: User profile saved.');
-
-    // 4. Temporary MongoDB Sync
-    if (process.env.MONGODB_URI) {
-      try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        const passwordHash = await bcrypt.hash(password, 12);
-        const now = new Date();
-        const existingUser = await User.findOne({ $or: [{ email }, { username: email }] });
-
-        if (existingUser) {
-          existingUser.name = name.trim();
-          existingUser.email = email;
-          existingUser.passwordHash = passwordHash;
-          existingUser.role = 'admin';
-          existingUser.status = 'approved';
-          existingUser.approvalStatus = 'approved';
-          existingUser.isApproved = true;
-          existingUser.approvedAt = now;
-          await existingUser.save();
-          console.log('MongoDB: Admin account updated.');
-        } else {
-          await User.create({
-            username: email,
-            name: name.trim(),
-            email,
-            passwordHash,
-            role: 'admin',
-            status: 'approved',
-            approvalStatus: 'approved',
-            isApproved: true,
-            approvedAt: now,
-          });
-          console.log('MongoDB: Admin account created.');
-        }
-      } catch (mongoErr) {
-        console.warn('MongoDB sync failed or skipped:', mongoErr.message);
-      } finally {
-        await mongoose.disconnect();
-      }
-    } else {
-      console.log('MongoDB: Skipped (MONGODB_URI missing).');
-    }
 
     console.log('Success: Admin account created/updated and approved in all systems.');
   } catch (error) {

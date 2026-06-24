@@ -4,11 +4,9 @@ const cors = require('cors');
 const express = require('express');
 const session = require('express-session');
 const helmet = require('helmet');
-const { MongoStore } = require('connect-mongo');
-const mongoose = require('mongoose');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
-const History = require('./models/History');
+const { db: firestoreDb } = require('./src/firebaseAdmin');
 const healthRoutes = require('./routes/healthRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const questionRoutes = require('./routes/questionRoutes');
@@ -17,7 +15,7 @@ const examSetRoutes = require('./routes/examSetRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const statsRoutes = require('./routes/statsRoutes');
-const { getJwtSecret, optionalAuthenticateToken } = require('./middleware/auth');
+const { getJwtSecret, authenticateToken, optionalAuthenticateToken } = require('./middleware/auth');
 
 const PORT = Number(process.env.PORT) || 5000;
 const isProduction = process.env.NODE_ENV === 'production';
@@ -31,7 +29,6 @@ function allowedOrigins() {
 }
 
 function validateRuntimeConfiguration() {
-  if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required');
   // getJwtSecret enforces the production requirement and emits a safe development warning.
   getJwtSecret();
 
@@ -45,23 +42,6 @@ function sessionSecret() {
   if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
   console.warn('SESSION_SECRET is not set; using the development JWT signing key for sessions.');
   return getJwtSecret();
-}
-
-async function connectDB() {
-  await mongoose.connect(process.env.MONGODB_URI);
-  console.log('MongoDB connected: krupuchuay');
-}
-
-function requireDb(req, res, next) {
-  if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ error: 'Database is temporarily unavailable' });
-  }
-  return next();
-}
-
-function requireSessionAuth(req, res, next) {
-  if (!req.session.user) return res.status(401).json({ error: 'Authentication is required' });
-  return next();
 }
 
 function createApp() {
@@ -95,7 +75,6 @@ function createApp() {
   app.use(session({
     name: 'krupuchuay.sid',
     secret: sessionSecret(),
-    store: MongoStore.create({ mongoUrl: process.env.MONGODB_URI, collectionName: 'sessions', ttl: 24 * 60 * 60, autoRemove: 'native' }),
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -106,7 +85,6 @@ function createApp() {
     },
   }));
 
-  app.use('/api', requireDb);
   app.use('/api/health', healthRoutes);
   app.use('/api/categories', categoryRoutes);
   app.use('/api/questions', questionRoutes);
@@ -128,37 +106,54 @@ function createApp() {
     req.session.destroy(() => res.json({ success: true }));
   });
 
-  app.get('/api/history/:username', requireSessionAuth, async (req, res) => {
+  app.get('/api/history/:username', authenticateToken, async (req, res) => {
     try {
       const { username } = req.params;
-      if (req.session.user.username !== username && req.session.user.role !== 'admin') {
+      if (req.user.username !== username && req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Access denied' });
       }
-      const history = await History.find({ username }).sort({ createdAt: -1 }).limit(100);
+      const snapshot = await firestoreDb.collection('history').where('username', '==', username).get();
+      const history = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt) : null
+        };
+      }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 100);
       return res.json(history);
     } catch (error) {
       return res.status(500).json({ error: 'Unable to load history' });
     }
   });
 
-  app.post('/api/history/:username', requireSessionAuth, async (req, res) => {
+  app.post('/api/history/:username', authenticateToken, async (req, res) => {
     try {
       const { username } = req.params;
-      if (req.session.user.username !== username) return res.status(403).json({ error: 'Access denied' });
-      await History.create({ ...req.body, username });
+      if (req.user.username !== username) return res.status(403).json({ error: 'Access denied' });
+      await firestoreDb.collection('history').add({
+        ...req.body,
+        username,
+        createdAt: new Date()
+      });
       return res.json({ success: true });
     } catch (error) {
       return res.status(500).json({ error: 'Unable to save history' });
     }
   });
 
-  app.delete('/api/history/:username', requireSessionAuth, async (req, res) => {
+  app.delete('/api/history/:username', authenticateToken, async (req, res) => {
     try {
       const { username } = req.params;
-      if (req.session.user.username !== username && req.session.user.role !== 'admin') {
+      if (req.user.username !== username && req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Access denied' });
       }
-      await History.deleteMany({ username });
+      const snapshot = await firestoreDb.collection('history').where('username', '==', username).get();
+      const batch = firestoreDb.batch();
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
       return res.json({ success: true });
     } catch (error) {
       return res.status(500).json({ error: 'Unable to delete history' });
@@ -179,12 +174,11 @@ async function startServer() {
   try {
     validateRuntimeConfiguration();
     const app = createApp();
-    await connectDB();
     app.listen(PORT, '0.0.0.0', () => console.log(`Server listening on port ${PORT}`));
   } catch (error) {
-    const safeMessage = ['MONGODB_URI is required', 'JWT_SECRET is required in production', 'SESSION_SECRET is required in production', 'CORS_ORIGIN is required in production', 'CORS_ORIGIN must not contain a wildcard origin'].includes(error.message)
+    const safeMessage = ['JWT_SECRET is required in production', 'SESSION_SECRET is required in production', 'CORS_ORIGIN is required in production', 'CORS_ORIGIN must not contain a wildcard origin'].includes(error.message)
       ? error.message
-      : 'Unable to start server. Check the database connection and deployment configuration.';
+      : 'Unable to start server. Check the deployment configuration.';
     console.error(`Server startup failed: ${safeMessage}`);
     process.exit(1);
   }

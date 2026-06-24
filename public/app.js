@@ -1288,7 +1288,9 @@ function showPage(id) {
 // ===== HOME =====
 async function fetchHistory() {
   try {
-    const res = await fetch('/api/history/' + currentUser.username);
+    const res = await fetch('/api/history/' + currentUser.username, {
+      headers: jwtHeaders()
+    });
     if (res.ok) return await res.json();
   } catch (e) {}
   return [];
@@ -1482,7 +1484,7 @@ async function finishQuiz(timedOut = false) {
   try {
     await fetch('/api/history/' + currentUser.username, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...jwtHeaders() },
       body: JSON.stringify(entry)
     });
   } catch (e) {}

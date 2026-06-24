@@ -1,7 +1,5 @@
 require('dotenv').config({ quiet: true });
 
-const mongoose = require('mongoose');
-const User = require('../models/User');
 const { auth: firebaseAuth, db: firestoreDb } = require('../src/firebaseAdmin');
 
 function argumentValue(name) {
@@ -59,48 +57,6 @@ async function main() {
         updatedAt: new Date(),
       });
       console.log(`Firestore: User ${uid} approved.`);
-    }
-
-    // 2. Sync to MongoDB
-    if (process.env.MONGODB_URI) {
-      try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        const user = await User.findOneAndUpdate(
-          { email },
-          {
-            $set: {
-              status: 'approved',
-              approvalStatus: 'approved',
-              isApproved: true,
-              approvedAt: new Date(),
-              updatedAt: new Date(),
-            },
-          },
-          { returnDocument: 'after', runValidators: true },
-        );
-        if (user) {
-          console.log('MongoDB: User status synchronized.');
-        } else {
-          // If they aren't in MongoDB, create them (with dummy password/info) so legacy routes work
-          await User.create({
-            username: email,
-            name: 'Firebase User',
-            email,
-            role: 'user',
-            status: 'approved',
-            approvalStatus: 'approved',
-            isApproved: true,
-            approvedAt: new Date(),
-          });
-          console.log('MongoDB: User did not exist, synced placeholder user record.');
-        }
-      } catch (mongoErr) {
-        console.warn('MongoDB sync failed or skipped:', mongoErr.message);
-      } finally {
-        await mongoose.disconnect();
-      }
-    } else {
-      console.log('MongoDB: Skipped (MONGODB_URI missing).');
     }
 
     console.log(`Success: User account ${email} approved successfully.`);

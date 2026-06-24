@@ -1,6 +1,3 @@
-const bcrypt = require('bcryptjs');
-const mongoose = require('mongoose');
-const User = require('../models/User');
 const { auth: firebaseAuth, db: firestoreDb } = require('../src/firebaseAdmin');
 
 function isValidId(id) {
@@ -17,8 +14,8 @@ function approvalStatusOf(user) {
 
 function publicUser(user) {
   return {
-    id: user.uid || (user._id ? user._id.toString() : ''),
-    uid: user.uid || (user._id ? user._id.toString() : ''),
+    id: user.uid,
+    uid: user.uid,
     name: user.name,
     email: user.email || null,
     username: user.username || user.email,
@@ -27,7 +24,6 @@ function publicUser(user) {
     isApproved: approvalStatusOf(user) === 'approved',
     createdAt: user.createdAt ? (user.createdAt.toDate ? user.createdAt.toDate() : user.createdAt) : null,
     updatedAt: user.updatedAt ? (user.updatedAt.toDate ? user.updatedAt.toDate() : user.updatedAt) : null,
-    isLegacy: !user.email,
   };
 }
 
@@ -103,21 +99,6 @@ async function createUser(req, res) {
     };
     await firestoreDb.collection('users').doc(uid).set(userProfile);
 
-    try {
-      await User.create({
-        username: normalizedEmail,
-        name: name.trim(),
-        email: normalizedEmail,
-        role,
-        status: approvalStatus,
-        approvalStatus,
-        isApproved: approvalStatus === 'approved',
-        approvedAt: approvalStatus === 'approved' ? new Date() : undefined,
-      });
-    } catch (mongoErr) {
-      console.warn('MongoDB sync failed during createUser:', mongoErr.message);
-    }
-
     return res.status(201).json(publicUser(userProfile));
   } catch (error) {
     console.error('createUser error:', error);
@@ -184,32 +165,6 @@ async function updateUser(req, res) {
     }
     await userRef.update(firestoreUpdate);
 
-    try {
-      const mongoUser = await User.findOne({ $or: [{ email: currentData.email }, { username: currentData.email }] });
-      if (mongoUser) {
-        if (name !== undefined) mongoUser.name = name.trim();
-        if (email !== undefined) {
-          mongoUser.email = email.trim().toLowerCase();
-          mongoUser.username = email.trim().toLowerCase();
-        }
-        if (role !== undefined) mongoUser.role = role;
-        if (approvalStatus !== undefined) {
-          mongoUser.status = approvalStatus;
-          mongoUser.approvalStatus = approvalStatus;
-          mongoUser.isApproved = approvalStatus === 'approved';
-          if (approvalStatus === 'approved') {
-            mongoUser.approvedAt = new Date();
-            if (mongoose.isValidObjectId(req.user.sub)) {
-              mongoUser.approvedBy = req.user.sub;
-            }
-          }
-        }
-        await mongoUser.save();
-      }
-    } catch (mongoErr) {
-      console.warn('MongoDB sync failed during updateUser:', mongoErr.message);
-    }
-
     const updatedDoc = await userRef.get();
     return res.json(publicUser({ uid: req.params.id, ...updatedDoc.data() }));
   } catch (error) {
@@ -245,24 +200,6 @@ async function updateApproval(req, res, approvalStatus) {
     }
     await userRef.update(updateData);
 
-    try {
-      const mongoUser = await User.findOne({ $or: [{ email: currentData.email }, { username: currentData.email }] });
-      if (mongoUser) {
-        mongoUser.status = approvalStatus;
-        mongoUser.approvalStatus = approvalStatus;
-        mongoUser.isApproved = approvalStatus === 'approved';
-        if (approvalStatus === 'approved') {
-          mongoUser.approvedAt = new Date();
-          if (mongoose.isValidObjectId(req.user.sub)) {
-            mongoUser.approvedBy = req.user.sub;
-          }
-        }
-        await mongoUser.save();
-      }
-    } catch (mongoErr) {
-      console.warn('MongoDB sync failed during updateApproval:', mongoErr.message);
-    }
-
     const updatedDoc = await userRef.get();
     return res.json(publicUser({ uid: req.params.id, ...updatedDoc.data() }));
   } catch (error) {
@@ -290,12 +227,6 @@ async function deleteUser(req, res) {
 
     await firebaseAuth.deleteUser(req.params.id);
     await userRef.delete();
-
-    try {
-      await User.deleteOne({ $or: [{ email: currentData.email }, { username: currentData.email }] });
-    } catch (mongoErr) {
-      console.warn('MongoDB sync failed during deleteUser:', mongoErr.message);
-    }
 
     return res.json({ success: true });
   } catch (error) {
