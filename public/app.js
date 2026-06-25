@@ -945,11 +945,77 @@ prof_std: [
 };
 
 // ===== STATE =====
+const APP_VERSION = '1.0.1';
+console.log(`App version: ${APP_VERSION}`);
+
+let authReadyResolve;
+const authReadyPromise = new Promise(resolve => {
+  authReadyResolve = resolve;
+});
+
+async function waitForAuthReady() {
+  await authReadyPromise;
+}
+
 let currentUser = null, currentSubject = null, currentQuestions = [], currentQ = 0, userAnswers = [], quizStartTime = null, timerInterval = null, answered = false, mongoQuizCategories = [], finishingQuiz = false;
 
-function jwtHeaders() {
-  const token = localStorage.getItem('authToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
+async function jwtHeaders(options = {}) {
+  await waitForAuthReady();
+  const firebaseUser = (auth && auth.currentUser) || (window.firebase && firebase.auth().currentUser);
+  if (!firebaseUser) {
+    throw new Error('AUTH_REQUIRED');
+  }
+  const token = await firebaseUser.getIdToken(!!options.forceRefresh);
+  return { Authorization: `Bearer ${token}` };
+}
+
+async function apiFetch(url, options = {}, retry = true) {
+  await waitForAuthReady();
+  const needsAuth = options.auth !== false;
+  const headers = {
+    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    ...(options.headers || {})
+  };
+
+  if (needsAuth) {
+    try {
+      const tokenHeaders = await jwtHeaders({ forceRefresh: false });
+      Object.assign(headers, tokenHeaders);
+    } catch (e) {
+      if (e.message === 'AUTH_REQUIRED') {
+        if (options.optionalAuth) {
+          // continue without auth token
+        } else {
+          throw e;
+        }
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  const response = await fetch(url, { ...options, headers });
+
+  if ((response.status === 401 || response.status === 403) && needsAuth && retry) {
+    const firebaseUser = (auth && auth.currentUser) || (window.firebase && firebase.auth().currentUser);
+    if (firebaseUser) {
+      try {
+        const refreshedHeaders = await jwtHeaders({ forceRefresh: true });
+        const retryResponse = await fetch(url, {
+          ...options,
+          headers: {
+            ...headers,
+            ...refreshedHeaders
+          }
+        });
+        return retryResponse;
+      } catch (retryError) {
+        console.error('Retry auth error:', retryError);
+      }
+    }
+  }
+
+  return response;
 }
 
 // ===== FIREBASE INITIALIZATION & STATE LISTENER =====
@@ -960,12 +1026,14 @@ async function initializeAppAuth() {
     const res = await fetch('/api/auth/firebase-config');
     if (!res.ok) {
       console.error('Failed to load Firebase config from server');
+      authReadyResolve();
       return;
     }
     const config = await res.json();
     firebase.initializeApp(config);
     auth = firebase.auth();
     
+    let firstCheck = true;
     // Listen for authentication state changes:
     auth.onAuthStateChanged(async (firebaseUser) => {
       if (firebaseUser) {
@@ -998,9 +1066,19 @@ async function initializeAppAuth() {
             if (document.getElementById('page-home').classList.contains('active')) {
               showPage('home');
             }
+          } else {
+            currentUser = null;
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('authUser');
+            await auth.signOut();
           }
         } catch (err) {
           console.error('Error during auth state change processing:', err);
+        } finally {
+          if (firstCheck) {
+            firstCheck = false;
+            authReadyResolve();
+          }
         }
       } else {
         currentUser = null;
@@ -1015,10 +1093,16 @@ async function initializeAppAuth() {
         
         const pendingNotice = document.getElementById('pendingNotice');
         if (pendingNotice) pendingNotice.style.display = 'none';
+
+        if (firstCheck) {
+          firstCheck = false;
+          authReadyResolve();
+        }
       }
     });
   } catch (err) {
     console.error('Error initializing Firebase:', err);
+    authReadyResolve();
   }
 }
 
@@ -1241,7 +1325,6 @@ async function doLogout() {
   clearInterval(timerInterval);
   localStorage.removeItem('authToken');
   localStorage.removeItem('authUser');
-  try { await fetch('/api/logout', { method: 'POST' }); } catch (e) { /* no-op, kept for cache compat */ }
   if (auth) {
     try { await auth.signOut(); } catch (e) {}
   }
@@ -1263,9 +1346,19 @@ async function checkSession() {
 }
 
 // ===== NAV =====
-function showPage(id) {
-  if (['question-bank', 'exam-set-admin'].includes(id) && currentUser?.role !== 'admin') {
+async function showPage(id) {
+  const loader = document.getElementById('authLoader');
+  if (loader) loader.style.display = 'flex';
+
+  try {
+    await waitForAuthReady();
+  } finally {
+    if (loader) loader.style.display = 'none';
+  }
+
+  if (['admin', 'question-bank', 'exam-set-admin'].includes(id) && currentUser?.role !== 'admin') {
     alert('ไม่มีสิทธิ์เข้าถึง');
+    showPage('home');
     return;
   }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -1277,20 +1370,19 @@ function showPage(id) {
   if (id === 'question-bank') document.getElementById('questionBankTab').classList.add('active');
   if (id === 'exam-sets') document.getElementById('examSetsTab').classList.add('active');
   if (id === 'exam-set-admin') document.getElementById('examSetAdminTab').classList.add('active');
-  if (id === 'home') buildHome();
-  if (id === 'stats') renderStats();
-  if (id === 'admin') renderAdmin();
-  if (id === 'question-bank') renderQuestionBank();
-  if (id === 'exam-sets') renderExamSets();
-  if (id === 'exam-set-admin') renderExamSetAdmin();
+  
+  if (id === 'home') await buildHome();
+  if (id === 'stats') await renderStats();
+  if (id === 'admin') await renderAdmin();
+  if (id === 'question-bank') await renderQuestionBank();
+  if (id === 'exam-sets') await renderExamSets();
+  if (id === 'exam-set-admin') await renderExamSetAdmin();
 }
 
 // ===== HOME =====
 async function fetchHistory() {
   try {
-    const res = await fetch('/api/history/' + currentUser.username, {
-      headers: jwtHeaders()
-    });
+    const res = await apiFetch('/api/history/' + currentUser.username);
     if (res.ok) return await res.json();
   } catch (e) {}
   return [];
@@ -1313,7 +1405,7 @@ async function buildHome() {
     html += '</div>';
   });
   try {
-    const res = await fetch('/api/categories');
+    const res = await apiFetch('/api/categories');
     if (res.ok) mongoQuizCategories = await res.json();
     if (mongoQuizCategories.length) {
       html += '<div class="part-label">📚 คลังข้อสอบจากฐานข้อมูล <span style="font-size:11px;color:var(--accent);font-weight:400;text-transform:none;letter-spacing:0">ข้อสอบที่เพิ่มโดยผู้ดูแล</span></div><div class="subject-grid">';
@@ -1343,7 +1435,7 @@ async function startMongoQuiz(categoryId) {
   const category = mongoQuizCategories.find(item => String(item._id) === String(categoryId));
   if (!category) { alert('ไม่พบหมวดข้อสอบ'); return; }
   try {
-    const res = await fetch(`/api/questions/random?categoryId=${encodeURIComponent(categoryId)}&limit=50`);
+    const res = await apiFetch(`/api/questions/random?categoryId=${encodeURIComponent(categoryId)}&limit=50`, { auth: false });
     const questions = await res.json();
     if (!res.ok || !questions.length) { alert('หมวดนี้ยังไม่มีข้อสอบที่เปิดใช้งาน'); return; }
     currentSubject = {
@@ -1372,7 +1464,7 @@ async function startMongoQuiz(categoryId) {
 
 async function startExamSet(id) {
   try {
-    const response = await fetch(`/api/exam-sets/${encodeURIComponent(id)}/start`, { method: 'POST', headers: jwtHeaders() });
+    const response = await apiFetch(`/api/exam-sets/${encodeURIComponent(id)}/start`, { method: 'POST' });
     const session = await response.json().catch(() => ({}));
     if (!response.ok) {
       if (response.status === 401) throw new Error('กรุณาเข้าสู่ระบบใหม่');
@@ -1482,18 +1574,16 @@ async function finishQuiz(timedOut = false) {
     answers: [...userAnswers]
   };
   try {
-    await fetch('/api/history/' + currentUser.username, {
+    await apiFetch('/api/history/' + currentUser.username, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...jwtHeaders() },
       body: JSON.stringify(entry)
     });
   } catch (e) {}
   let attemptSaveMessage = '';
   if (currentSubject.categoryId) {
-    const token = localStorage.getItem('authToken');
     const attemptPayload = {
       categoryId: currentSubject.categoryId,
-      guestName: token ? undefined : currentUser.name,
+      guestName: currentUser ? undefined : 'Guest',
       mode: currentSubject.examSet?.mode || 'practice',
       examSetId: currentSubject.examSet?.id,
       examSetTitle: currentSubject.examSet?.title,
@@ -1513,9 +1603,8 @@ async function finishQuiz(timedOut = false) {
       durationSeconds: elapsed,
     };
     try {
-      const response = await fetch('/api/exam-attempts', {
+      const response = await apiFetch('/api/exam-attempts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? jwtHeaders() : {}) },
         body: JSON.stringify(attemptPayload),
       });
       if (!response.ok) {
@@ -1752,7 +1841,7 @@ const STATUS_LABEL = { approved: '🟢 อนุมัติแล้ว', pendi
 async function renderAdmin() {
   await renderPendingUsers();
   try {
-    const res = await fetch('/api/users', { headers: jwtHeaders() });
+    const res = await apiFetch('/api/users');
     if (!res.ok) return;
     const users = await res.json();
     document.getElementById('userList').innerHTML = users.map(u => {
@@ -1780,7 +1869,7 @@ async function renderAdmin() {
 
 async function renderPendingUsers() {
   try {
-    const res = await fetch('/api/users/pending', { headers: jwtHeaders() });
+    const res = await apiFetch('/api/users/pending');
     if (!res.ok) return;
     const pending = await res.json();
     const badge = document.getElementById('pendingBadge');
@@ -1798,7 +1887,7 @@ async function renderPendingUsers() {
 
 async function approveUser(id, name) {
   try {
-    const res = await fetch(`/api/users/${id}/approve`, { method: 'PATCH', headers: jwtHeaders() });
+    const res = await apiFetch(`/api/users/${id}/approve`, { method: 'PATCH' });
     if (res.ok) { renderAdmin(); }
     else { const d = await res.json(); alert('❌ ' + d.error); }
   } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
@@ -1807,7 +1896,7 @@ async function approveUser(id, name) {
 async function rejectUser(id, name) {
   if (!confirm('ต้องการปฏิเสธคำขอสมัครสมาชิกของ ' + name + ' หรือไม่?')) return;
   try {
-    const res = await fetch(`/api/users/${id}/reject`, { method: 'PATCH', headers: jwtHeaders() });
+    const res = await apiFetch(`/api/users/${id}/reject`, { method: 'PATCH' });
     if (res.ok) { renderAdmin(); }
     else { const d = await res.json(); alert('❌ ' + d.error); }
   } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
@@ -1818,7 +1907,7 @@ async function setUserStatus(id, name, status) {
   if (!confirm(`ต้องการ${verb}ของ ${name} หรือไม่?`)) return;
   const endpoint = status === 'approved' ? 'approve' : 'reject';
   try {
-    const res = await fetch(`/api/users/${id}/${endpoint}`, { method: 'PATCH', headers: jwtHeaders() });
+    const res = await apiFetch(`/api/users/${id}/${endpoint}`, { method: 'PATCH' });
     if (res.ok) { renderAdmin(); }
     else { const d = await res.json(); alert('❌ ' + d.error); }
   } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
@@ -1832,9 +1921,8 @@ async function addUser() {
   const approvalStatus = document.getElementById('newApprovalStatus').value;
   if (!name || !email || !password) { alert('กรุณากรอกข้อมูลให้ครบทุกช่อง'); return; }
   try {
-    const res = await fetch('/api/users', {
+    const res = await apiFetch('/api/users', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...jwtHeaders() },
       body: JSON.stringify({ name, email, password, role, approvalStatus })
     });
     const data = await res.json();
@@ -1853,9 +1941,8 @@ async function addLegacyEmail(id, name) {
   const email = prompt(`เพิ่มอีเมลให้ ${name}`);
   if (!email) return;
   try {
-    const res = await fetch(`/api/users/${id}`, {
+    const res = await apiFetch(`/api/users/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', ...jwtHeaders() },
       body: JSON.stringify({ email: email.trim() })
     });
     const data = await res.json();
@@ -1867,7 +1954,7 @@ async function addLegacyEmail(id, name) {
 async function deleteUser(id, name) {
   if (!confirm('ต้องการลบผู้ใช้ ' + name + ' หรือไม่?')) return;
   try {
-    const res = await fetch('/api/users/' + id, { method: 'DELETE', headers: jwtHeaders() });
+    const res = await apiFetch('/api/users/' + id, { method: 'DELETE' });
     if (res.ok) { renderAdmin(); }
     else { const d = await res.json(); alert('❌ ' + d.error); }
   } catch (e) { alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
@@ -1887,10 +1974,7 @@ function showQuestionBankError(message = '') {
 }
 
 async function adminRequest(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: { ...jwtHeaders(), ...(options.headers || {}) },
-  });
+  const response = await apiFetch(url, options);
   if (response.ok) return response.status === 204 ? null : response.json();
   const data = await response.json().catch(() => ({}));
   if (response.status === 401) throw new Error('กรุณาเข้าสู่ระบบใหม่');
@@ -2204,7 +2288,7 @@ async function renderExamSets() {
   showExamSetsError();
   list.innerHTML = '<div class="empty-note">กำลังโหลดชุดข้อสอบ...</div>';
   try {
-    const response = await fetch('/api/exam-sets', { headers: jwtHeaders() });
+    const response = await apiFetch('/api/exam-sets');
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(response.status === 401 ? 'กรุณาเข้าสู่ระบบใหม่' : (data.error || 'ไม่สามารถโหลดชุดข้อสอบได้'));
     examSets = data;
