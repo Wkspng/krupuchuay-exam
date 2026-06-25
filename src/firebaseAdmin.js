@@ -10,6 +10,8 @@ const app = getApps()[0] || initializeApp({
 });
 
 const db = getFirestore(app);
+db.settings({ ignoreUndefinedProperties: true });
 const auth = getAuth(app);
 
 module.exports = { app, db, auth };
+
