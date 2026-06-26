@@ -12,7 +12,8 @@
     "create-admin": "node scripts/createAdmin.js",
     "approve-user": "node scripts/approveUser.js",
     "sanity-check": "node scripts/sanityCheckMigration.js",
-    "test:firestore": "node scripts/testFirestoreEndToEnd.js"
+    "test:firestore": "node scripts/testFirestoreEndToEnd.js",
+    "seed:thai-lang": "node scripts/seedThaiLang.js"
   },
   "dependencies": {
     "cors": "^2.8.6",
