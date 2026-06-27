@@ -1570,7 +1570,7 @@ async function startMongoQuiz(categoryId) {
       ans: question.correctAnswerIndex,
       explain: question.explanation || 'ไม่มีคำอธิบายเพิ่มเติม',
       topic: category.name,
-      year: new Date().getFullYear() + 543,
+      difficulty: question.difficulty || 'medium',
     }));
     currentQ = 0; userAnswers = new Array(currentQuestions.length).fill(-1);
     quizStartTime = Date.now(); answered = false; finishingQuiz = false;
@@ -1612,7 +1612,7 @@ async function startExamSet(id) {
       ans: question.correctAnswerIndex,
       explain: question.explanation || 'ไม่มีคำอธิบายเพิ่มเติม',
       topic: question.categoryName || 'ชุดข้อสอบ',
-      year: new Date().getFullYear() + 543,
+      difficulty: question.difficulty || 'medium',
     }));
     currentQ = 0;
     userAnswers = new Array(currentQuestions.length).fill(-1);
@@ -1666,7 +1666,9 @@ function renderQuestion() {
     return `<button class="${cls}" onclick="selectAnswer(${i})" ${answered ? 'disabled' : ''}><span class="opt-letter">${L[i]}</span><span>${o}</span></button>`;
   }).join('');
   const explain = answered && !isExamMode ? `<div class="explain-box">💡 <strong>เฉลย:</strong> ${q.explain}</div>` : '';
-  document.getElementById('quizContainer').innerHTML = `<div class="question-card"><div class="q-num">ข้อที่ ${currentQ+1} จาก ${total}</div><div class="q-tags"><span class="q-tag tag-year">📅 ปี พ.ศ. ${q.year}</span><span class="q-tag tag-topic">🏷 ${q.topic}</span><span class="q-tag tag-part">${currentSubject.partObj.short}</span></div><div class="q-text">${q.q}</div><div class="options">${opts}</div>${explain}</div>`;
+  const difficultyLabels = { easy: 'ง่าย', medium: 'ปานกลาง', hard: 'ยาก' };
+  const levelText = q.difficulty ? `📊 ระดับ: ${difficultyLabels[q.difficulty] || q.difficulty}` : `📅 ปี พ.ศ. ${q.year || '-'}`;
+  document.getElementById('quizContainer').innerHTML = `<div class="question-card"><div class="q-num">ข้อที่ ${currentQ+1} จาก ${total}</div><div class="q-tags"><span class="q-tag tag-year">${levelText}</span><span class="q-tag tag-topic">🏷 ${q.topic}</span><span class="q-tag tag-part">${currentSubject.partObj.short}</span></div><div class="q-text">${q.q}</div><div class="options">${opts}</div>${explain}</div>`;
 }
 
 function selectAnswer(i) { if (answered) return; userAnswers[currentQ] = i; answered = true; renderQuestion(); }
