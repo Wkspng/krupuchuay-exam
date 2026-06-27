@@ -1130,13 +1130,14 @@ let auth;
 
 async function initializeAppAuth() {
   try {
-    const res = await fetch('/api/auth/firebase-config');
-    if (!res.ok) {
-      console.error('Failed to load Firebase config from server');
-      authReadyResolve();
-      return;
-    }
-    const config = await res.json();
+    const config = {
+      apiKey: 'AIzaSyD1EJ5FHahxNhy40mAyGcUgl1red_7wOUs',
+      authDomain: 'moonlight-krupuchuay-exam.firebaseapp.com',
+      projectId: 'moonlight-krupuchuay-exam',
+      storageBucket: 'moonlight-krupuchuay-exam.firebasestorage.app',
+      messagingSenderId: '128921965845',
+      appId: '1:128921965845:web:dfd42886b64570f655451c',
+    };
     firebase.initializeApp(config);
     auth = firebase.auth();
     
