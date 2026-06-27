@@ -2316,10 +2316,64 @@ async function importQuestions() {
   const result = document.getElementById('importResult');
   let payload;
   try {
-    payload = JSON.parse(document.getElementById('questionImportInput').value);
+    const rawInput = document.getElementById('questionImportInput').value.trim();
+    try {
+      payload = JSON.parse(rawInput);
+    } catch (jsonErr) {
+      let cleanInput = rawInput;
+      if (cleanInput.includes('[')) {
+        const start = cleanInput.indexOf('[');
+        const end = cleanInput.lastIndexOf(']');
+        if (start !== -1 && end !== -1 && end > start) {
+          cleanInput = cleanInput.substring(start, end + 1);
+        }
+      }
+      payload = new Function(`return (${cleanInput})`)();
+    }
     if (!Array.isArray(payload)) throw new Error();
+
+    const activeCategoryId = document.getElementById('questionFilterCategory').value;
+    const activeCategory = bankCategories.find(c => String(categoryIdOf(c)) === String(activeCategoryId));
+    const defaultCategoryName = activeCategory ? activeCategory.name : '';
+
+    payload = payload.map(item => {
+      const questionText = item.questionText || item.q || '';
+      const choices = item.choices || item.opts || [];
+      const correctAnswerIndex = item.correctAnswerIndex !== undefined ? item.correctAnswerIndex : item.ans;
+      const explanation = item.explanation || item.explain || '';
+      
+      let difficulty = item.difficulty;
+      if (!difficulty && item.level) {
+        if (item.level === 'ยาก') difficulty = 'hard';
+        else if (item.level === 'ปานกลาง') difficulty = 'medium';
+        else difficulty = 'easy';
+      }
+      if (!difficulty) difficulty = 'medium';
+
+      const source = item.source || item.topic || '';
+      const categoryName = item.categoryName || defaultCategoryName;
+      const isActive = item.isActive !== undefined ? item.isActive : true;
+
+      return {
+        categoryName,
+        questionText,
+        choices,
+        correctAnswerIndex,
+        explanation,
+        difficulty,
+        source,
+        isActive
+      };
+    });
+
+    const missingCategory = payload.some(item => !item.categoryName);
+    if (missingCategory) {
+      result.textContent = 'เกิดข้อผิดพลาด: บางข้อสอบไม่มีการระบุหมวดหมู่ และไม่ได้เลือกตัวกรองหมวดหมู่ด้านบน';
+      result.style.display = 'block';
+      return;
+    }
   } catch (error) {
-    result.textContent = 'รูปแบบ JSON ไม่ถูกต้อง ต้องเป็น array ของข้อสอบ';
+    result.textContent = 'รูปแบบข้อมูลไม่ถูกต้อง ต้องเป็น JSON array หรือรูปแบบข้อสอบที่ส่งให้บอท';
     result.style.display = 'block';
     return;
   }
