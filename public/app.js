@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 // ===== DATA STRUCTURE =====
 const PARTS = [
@@ -1052,7 +1052,7 @@ prof_std: [
 };
 
 // ===== STATE =====
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 console.log(`App version: ${APP_VERSION}`);
 
 let authReadyResolve;
@@ -1157,6 +1157,12 @@ async function initializeAppAuth() {
             localStorage.setItem('authUser', JSON.stringify(user));
             currentUser = user;
             
+            // Resolve authReady first to prevent deadlock in buildHome/showPage
+            if (firstCheck) {
+              firstCheck = false;
+              authReadyResolve();
+            }
+            
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('appScreen').style.display = 'block';
             document.getElementById('userBadge').textContent = '👤 ' + user.name;
@@ -1178,11 +1184,14 @@ async function initializeAppAuth() {
             currentUser = null;
             localStorage.removeItem('authToken');
             localStorage.removeItem('authUser');
+            if (firstCheck) {
+              firstCheck = false;
+              authReadyResolve();
+            }
             await auth.signOut();
           }
         } catch (err) {
           console.error('Error during auth state change processing:', err);
-        } finally {
           if (firstCheck) {
             firstCheck = false;
             authReadyResolve();
