@@ -1907,16 +1907,80 @@ async function buildHome() {
 }
 
 // ===== QUIZ =====
-function startQuiz(subjectId) {
+async function startQuiz(subjectId) {
   const sub = SUBJECTS.find(s => s.id === subjectId);
   const pt = PARTS.find(p => p.id === sub.part);
   currentSubject = { ...sub, partObj: pt };
-  const pool = [...QB[subjectId]];
-  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-  currentQuestions = pool; currentQ = 0; userAnswers = new Array(pool.length).fill(-1);
-  quizStartTime = Date.now(); answered = false; finishingQuiz = false;
-  clearInterval(timerInterval); timerInterval = setInterval(updateTimer, 1000);
-  showPage('quiz'); renderQuestion();
+
+  const loader = document.getElementById('authLoader');
+  if (loader) loader.style.display = 'flex';
+
+  let pool = [];
+
+  try {
+    if (!mongoQuizCategories || mongoQuizCategories.length === 0) {
+      const catRes = await apiFetch('/api/categories');
+      if (catRes.ok) mongoQuizCategories = await catRes.json();
+    }
+
+    let targetCatName = '';
+    switch (subjectId) {
+      case 'const_law': targetCatName = 'รัฐธรรมนูญและกฎหมายการศึกษา'; break;
+      case 'edu_acts': targetCatName = 'พ.ร.บ. การศึกษา / ข้าราชการครู'; break;
+      case 'social_econ': targetCatName = 'สังคม เศรษฐกิจ การเมือง บ้านเมือง'; break;
+      case 'policy': targetCatName = 'นโยบายรัฐ / ปฏิรูปการศึกษา'; break;
+      case 'civil_servant':
+      case 'kharachkan': targetCatName = 'ความรู้และลักษณะการเป็นข้าราชการที่ดี'; break;
+      case 'thai_lang': targetCatName = 'ภาษาไทย (อ่านจับใจความ / ไวยากรณ์)'; break;
+      case 'math':
+      case 'reasoning': targetCatName = 'ความสามารถทั่วไป'; break;
+      case 'eng_basic': targetCatName = 'ภาษาอังกฤษพื้นฐาน'; break;
+      case 'ethics':
+      case 'prof_std': targetCatName = 'วิชาชีพครู'; break;
+    }
+
+    const category = mongoQuizCategories.find(c => String(c.name).trim() === targetCatName);
+    if (category) {
+      const qRes = await apiFetch(`/api/questions/random?categoryId=${encodeURIComponent(category._id)}&limit=150`, { auth: false });
+      if (qRes.ok) {
+        const dbQs = await qRes.json();
+        if (Array.isArray(dbQs) && dbQs.length > 0) {
+          pool = dbQs.map(q => ({
+            q: q.questionText,
+            opts: q.choices,
+            ans: q.correctAnswerIndex,
+            explain: q.explanation || '',
+            topic: q.source || '',
+            difficulty: q.difficulty || 'medium'
+          }));
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error fetching questions from database:', e);
+  } finally {
+    if (loader) loader.style.display = 'none';
+  }
+
+  // Fallback to static local QB array if database pool is empty
+  if (pool.length === 0) {
+    pool = [...QB[subjectId]];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+  }
+
+  currentQuestions = pool;
+  currentQ = 0;
+  userAnswers = new Array(pool.length).fill(-1);
+  quizStartTime = Date.now();
+  answered = false;
+  finishingQuiz = false;
+  clearInterval(timerInterval);
+  timerInterval = setInterval(updateTimer, 1000);
+  showPage('quiz');
+  renderQuestion();
 }
 
 async function startMongoQuiz(categoryId) {
