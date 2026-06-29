@@ -284,7 +284,7 @@
     <section class="bank-section">
       <h3>Import ข้อสอบ JSON</h3>
       <p class="page-sub">ต้องมี categoryName ที่ตรงกับหมวดเดิม ระบบจะไม่สร้างหมวดใหม่อัตโนมัติ</p>
-      <input type="file" id="questionImportFile" accept="application/json,.json" onchange="loadImportFile()">
+      <input type="file" id="questionImportFile" accept=".json,.js,.txt,application/json,text/plain,application/javascript" onchange="loadImportFile()">
       <textarea id="questionImportInput" class="import-area" placeholder='วาง JSON array ที่นี่'></textarea>
       <div class="bank-actions"><button class="btn btn-primary" onclick="importQuestions()">Import JSON</button></div>
       <p class="import-result" id="importResult" style="display:none"></p>
@@ -294,6 +294,6 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-<script src="app.js?v=1.0.3"></script>
+<script src="app.js?v=1.0.4"></script>
 </body>
 </html>
