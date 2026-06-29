@@ -2334,7 +2334,33 @@ async function importQuestions() {
 
     const activeCategoryId = document.getElementById('questionFilterCategory').value;
     const activeCategory = bankCategories.find(c => String(categoryIdOf(c)) === String(activeCategoryId));
-    const defaultCategoryName = activeCategory ? activeCategory.name : '';
+    let defaultCategoryName = activeCategory ? activeCategory.name : '';
+
+    if (!defaultCategoryName) {
+      if (rawInput.includes('social_econ:')) {
+        defaultCategoryName = 'สังคม เศรษฐกิจ การเมือง บ้านเมือง';
+      } else if (rawInput.includes('const_law:')) {
+        defaultCategoryName = 'รัฐธรรมนูญและกฎหมายการศึกษา';
+      } else if (rawInput.includes('edu_acts:')) {
+        defaultCategoryName = 'พ.ร.บ. การศึกษา / ข้าราชการครู';
+      } else if (rawInput.includes('policy:')) {
+        defaultCategoryName = 'นโยบายรัฐ / ปฏิรูปการศึกษา';
+      } else if (rawInput.includes('civil_servant:') || rawInput.includes('kharachkan:')) {
+        defaultCategoryName = 'ความรู้และลักษณะการเป็นข้าราชการที่ดี';
+      } else if (rawInput.includes('thai_lang:')) {
+        defaultCategoryName = 'ภาษาไทย (อ่านจับใจความ / ไวยากรณ์)';
+      } else if (rawInput.includes('math:')) {
+        defaultCategoryName = 'คณิตศาสตร์และตรรกศาสตร์';
+      } else if (rawInput.includes('reasoning:')) {
+        defaultCategoryName = 'เหตุผลและมิติสัมพันธ์';
+      } else if (rawInput.includes('eng_basic:')) {
+        defaultCategoryName = 'ภาษาอังกฤษพื้นฐาน';
+      } else if (rawInput.includes('ethics:')) {
+        defaultCategoryName = 'คุณธรรม จริยธรรม จรรยาบรรณครู';
+      } else if (rawInput.includes('prof_std:')) {
+        defaultCategoryName = 'มาตรฐานวิชาชีพและการปฏิบัติงาน';
+      }
+    }
 
     payload = payload.map(item => {
       const questionText = item.questionText || item.q || '';
