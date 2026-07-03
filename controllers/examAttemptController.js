@@ -33,7 +33,8 @@ async function getExamAttempts(req, res) {
       dateFrom: req.query.dateFrom,
       dateTo: req.query.dateTo,
       limit: req.query.limit,
-      page: req.query.page
+      page: req.query.page,
+      startAfter: req.query.startAfter
     };
 
     const result = await firestoreExamAttemptService.getExamAttempts(filters, req.user);

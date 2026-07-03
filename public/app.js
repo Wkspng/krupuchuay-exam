@@ -2200,7 +2200,9 @@ function retryQuiz() {
 // ===== STATS =====
 let statsAttempts = [];
 let historyPage = 1;
-let historyTotalPages = 1;
+let historyCursorStack = [null];
+let historyNextCursor = null;
+let historyHasNextPage = false;
 
 function showStatsError(message = '') {
   const element = document.getElementById('statsError');
@@ -2307,11 +2309,22 @@ async function renderStats() {
 }
 
 async function loadStatsAttempts(resetPage = false) {
-  if (resetPage) historyPage = 1;
+  if (resetPage) {
+    historyPage = 1;
+    historyCursorStack = [null];
+    historyNextCursor = null;
+    historyHasNextPage = false;
+  }
   try {
     const isAdmin = currentUser?.role === 'admin';
     const limit = 20;
-    const params = new URLSearchParams({ limit: String(limit), page: String(historyPage) });
+    const params = new URLSearchParams({ limit: String(limit) });
+    
+    const cursor = historyCursorStack[historyPage - 1];
+    if (cursor) {
+      params.set('startAfter', cursor);
+    }
+    
     if (isAdmin) {
       const userId = document.getElementById('statsUserFilter').value;
       const categoryId = document.getElementById('statsCategoryFilter').value;
@@ -2325,13 +2338,12 @@ async function loadStatsAttempts(resetPage = false) {
     const response = await adminRequest(`/api/exam-attempts?${params.toString()}`);
     statsAttempts = response.attempts || [];
     
-    const pagination = response.pagination || {};
-    historyTotalPages = pagination.pages || 1;
-    historyPage = pagination.page || 1;
+    historyNextCursor = response.nextCursor || null;
+    historyHasNextPage = !!response.hasNextPage;
     
     const label = document.getElementById('historyPageLabel');
     if (label) {
-      label.textContent = `หน้า ${historyPage} / ${historyTotalPages}`;
+      label.textContent = `หน้า ${historyPage}`;
     }
     const btnPrev = document.getElementById('btnHistoryPrev');
     if (btnPrev) {
@@ -2339,7 +2351,7 @@ async function loadStatsAttempts(resetPage = false) {
     }
     const btnNext = document.getElementById('btnHistoryNext');
     if (btnNext) {
-      btnNext.disabled = historyPage >= historyTotalPages;
+      btnNext.disabled = !historyHasNextPage;
     }
     
     document.getElementById('attemptHistoryTitle').textContent = isAdmin ? 'ประวัติผู้สอบทั้งหมด' : 'ประวัติการทดสอบของฉัน';
@@ -2348,10 +2360,17 @@ async function loadStatsAttempts(resetPage = false) {
 }
 
 function changeHistoryPage(offset) {
-  const targetPage = historyPage + offset;
-  if (targetPage >= 1 && targetPage <= historyTotalPages) {
-    historyPage = targetPage;
-    loadStatsAttempts(false);
+  if (offset === 1) {
+    if (historyHasNextPage) {
+      historyCursorStack[historyPage] = historyNextCursor;
+      historyPage += 1;
+      loadStatsAttempts(false);
+    }
+  } else if (offset === -1) {
+    if (historyPage > 1) {
+      historyPage -= 1;
+      loadStatsAttempts(false);
+    }
   }
 }
 

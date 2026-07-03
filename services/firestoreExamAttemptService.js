@@ -115,7 +115,7 @@ async function createExamAttempt(data, user) {
   return mapDoc(createdDoc);
 }
 
-async function getExamAttempts({ userId, categoryId, examSetId, dateFrom, dateTo, limit, page } = {}, user) {
+async function getExamAttempts({ userId, categoryId, examSetId, dateFrom, dateTo, limit, page, startAfter } = {}, user) {
   const isAdmin = user.role === 'admin';
   let targetUserId = null;
 
@@ -125,18 +125,54 @@ async function getExamAttempts({ userId, categoryId, examSetId, dateFrom, dateTo
     targetUserId = user.sub;
   }
 
+  let limitNum = Number.parseInt(limit, 10);
+  if (Number.isNaN(limitNum) || limitNum < 1) limitNum = 20;
+  limitNum = Math.min(Math.max(limitNum, 1), 100); // cap limit at 100
+
+  // Fetch the startAfter DocumentSnapshot if cursor ID is provided
+  let startAfterDoc = null;
+  if (startAfter && typeof startAfter === 'string' && startAfter.trim()) {
+    try {
+      const doc = await db.collection('examAttempts').doc(startAfter).get();
+      if (doc.exists) {
+        startAfterDoc = doc;
+      }
+    } catch (e) {
+      console.error('Error fetching startAfter doc:', e);
+    }
+  }
+
   // Build target query in Firestore
   let query = db.collection('examAttempts');
   if (targetUserId) {
     query = query.where('userId', '==', targetUserId);
-  } else if (categoryId) {
-    query = query.where('categoryId', '==', categoryId);
   } else if (examSetId) {
     query = query.where('examSetId', '==', examSetId);
+  } else if (categoryId) {
+    query = query.where('categoryId', '==', categoryId);
   }
 
-  // Safety: Limit maximum documents fetched to 1000
-  query = query.limit(1000);
+  // Date filters in database
+  const parsedFrom = parseDate(dateFrom);
+  const parsedTo = parseDate(dateTo);
+  if (parsedFrom) {
+    query = query.where('submittedAt', '>=', parsedFrom);
+  }
+  if (parsedTo) {
+    parsedTo.setHours(23, 59, 59, 999);
+    query = query.where('submittedAt', '<=', parsedTo);
+  }
+
+  // Order by submittedAt DESC in Firestore database
+  query = query.orderBy('submittedAt', 'desc');
+
+  // Apply cursor pagination
+  if (startAfterDoc) {
+    query = query.startAfter(startAfterDoc);
+  }
+
+  // Retrieve limit + 1 items to determine hasNextPage
+  query = query.limit(limitNum + 1);
 
   const snapshot = await query.get();
   let attempts = [];
@@ -145,50 +181,20 @@ async function getExamAttempts({ userId, categoryId, examSetId, dateFrom, dateTo
     if (mapped) attempts.push(mapped);
   });
 
-  // In-memory sort by submittedAt DESC
-  attempts.sort((a, b) => {
-    const timeA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
-    const timeB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
-    return timeB - timeA;
-  });
-
-  // Apply secondary filters in-memory
-  // Filter by userId if not matched in query
-  if (!targetUserId && userId) {
-    attempts = attempts.filter(a => a.userId === userId);
-  }
-  // Filter by categoryId if not matched in query
+  // Apply secondary filters in-memory (only if cross-selected by admin, e.g. both userId and categoryId)
   if (targetUserId && categoryId) {
     attempts = attempts.filter(a => a.categoryId === categoryId);
   }
-  // Filter by examSetId if not matched in query
   if ((targetUserId || categoryId) && examSetId) {
     attempts = attempts.filter(a => a.examSetId === examSetId);
   }
-  // Date filters
-  const parsedFrom = parseDate(dateFrom);
-  const parsedTo = parseDate(dateTo);
-  if (parsedFrom) {
-    attempts = attempts.filter(a => a.submittedAt && new Date(a.submittedAt) >= parsedFrom);
-  }
-  if (parsedTo) {
-    parsedTo.setHours(23, 59, 59, 999);
-    attempts = attempts.filter(a => a.submittedAt && new Date(a.submittedAt) <= parsedTo);
-  }
 
-  // In-memory pagination first
-  let pageNum = Number.parseInt(page, 10);
-  let limitNum = Number.parseInt(limit, 10);
-  if (Number.isNaN(pageNum) || pageNum < 1) pageNum = 1;
-  if (Number.isNaN(limitNum) || limitNum < 1) limitNum = 20;
-  limitNum = Math.min(Math.max(limitNum, 1), 100); // cap limit at 100
+  // Determine hasNextPage & nextCursor
+  const hasNextPage = attempts.length > limitNum;
+  const paginatedAttempts = hasNextPage ? attempts.slice(0, limitNum) : attempts;
+  const nextCursor = hasNextPage && paginatedAttempts.length > 0 ? paginatedAttempts[paginatedAttempts.length - 1].id : null;
 
-  const total = attempts.length;
-  const pages = Math.ceil(total / limitNum);
-  const offset = (pageNum - 1) * limitNum;
-  const paginatedAttempts = attempts.slice(offset, offset + limitNum);
-
-  // Populate user data only for the sliced page attempts
+  // Populate user data only for the paginated page attempts
   const uniqueUserIds = [...new Set(paginatedAttempts.map(a => a.userId).filter(Boolean))];
   const userMap = new Map();
   if (uniqueUserIds.length > 0) {
@@ -233,12 +239,9 @@ async function getExamAttempts({ userId, categoryId, examSetId, dateFrom, dateTo
 
   return {
     attempts: mappedAttempts,
-    pagination: {
-      total,
-      page: pageNum,
-      limit: limitNum,
-      pages
-    }
+    nextCursor,
+    hasNextPage,
+    pageSize: limitNum
   };
 }
 
