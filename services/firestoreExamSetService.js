@@ -1,5 +1,6 @@
 const { db } = require('../src/firebaseAdmin');
 const { mapDoc } = require('./firestoreHelper');
+const firestoreExamPackService = require('./firestoreExamPackService');
 
 function shuffle(items) {
   const copy = [...items];
@@ -236,31 +237,46 @@ async function startExamSet(id) {
   const selections = [];
 
   for (const rule of examSet.categoryRules) {
-    // Count active questions in category
-    const activeQuestionsSnap = await db.collection('questions')
-      .where('categoryId', '==', rule.categoryId)
-      .where('isActive', '==', true)
-      .get();
-    
-    const availableQuestions = [];
-    activeQuestionsSnap.forEach(doc => {
-      const mapped = mapDoc(doc);
-      if (mapped) availableQuestions.push(mapped);
-    });
+    let selected = null;
 
-    const available = availableQuestions.length;
-    if (available < rule.questionCount) {
-      const err = new Error(`จำนวนข้อสอบในหมวดนี้ไม่เพียงพอ: ${rule.categoryName} (ต้องการ ${rule.questionCount} ข้อ มี ${available} ข้อ)`);
-      err.code = 'INSUFFICIENT_QUESTIONS';
-      err.categoryId = rule.categoryId;
-      err.required = rule.questionCount;
-      err.available = available;
-      throw err;
+    try {
+      const packQuestions = await firestoreExamPackService.getRandomQuestionsFromPack(rule.categoryId, rule.questionCount);
+      if (packQuestions !== null) {
+        selected = packQuestions;
+      }
+    } catch (err) {
+      console.error(`Error loading from exam pack for category ${rule.categoryId} in startExamSet:`, err);
     }
 
-    // Shuffle and slice rule.questionCount questions
-    const shuffled = shuffle(availableQuestions);
-    const selected = shuffled.slice(0, rule.questionCount);
+    if (!selected) {
+      console.warn(`[EXAM-PACK-WARNING] No published/fresh exam pack found for category ${rule.categoryId}. Falling back to database query.`);
+      // Count active questions in category
+      const activeQuestionsSnap = await db.collection('questions')
+        .where('categoryId', '==', rule.categoryId)
+        .where('isActive', '==', true)
+        .get();
+      
+      const availableQuestions = [];
+      activeQuestionsSnap.forEach(doc => {
+        const mapped = mapDoc(doc);
+        if (mapped) availableQuestions.push(mapped);
+      });
+
+      const available = availableQuestions.length;
+      if (available < rule.questionCount) {
+        const err = new Error(`จำนวนข้อสอบในหมวดนี้ไม่เพียงพอ: ${rule.categoryName} (ต้องการ ${rule.questionCount} ข้อ มี ${available} ข้อ)`);
+        err.code = 'INSUFFICIENT_QUESTIONS';
+        err.categoryId = rule.categoryId;
+        err.required = rule.questionCount;
+        err.available = available;
+        throw err;
+      }
+
+      // Shuffle and slice rule.questionCount questions
+      const shuffled = shuffle(availableQuestions);
+      selected = shuffled.slice(0, rule.questionCount);
+    }
+
     selections.push(...selected.map(q => ({ ...q, categoryName: rule.categoryName })));
   }
 

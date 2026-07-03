@@ -1943,7 +1943,8 @@ async function startQuiz(subjectId) {
     if (category) {
       const qRes = await apiFetch(`/api/questions/random?categoryId=${encodeURIComponent(category._id)}&limit=150`, { auth: false });
       if (qRes.ok) {
-        const dbQs = await qRes.json();
+        const rawQs = await qRes.json();
+        const dbQs = Array.isArray(rawQs) ? rawQs : (rawQs.questions || []);
         if (Array.isArray(dbQs) && dbQs.length > 0) {
           pool = dbQs.map(q => ({
             q: q.questionText,
@@ -1988,7 +1989,8 @@ async function startMongoQuiz(categoryId) {
   if (!category) { alert('ไม่พบหมวดข้อสอบ'); return; }
   try {
     const res = await apiFetch(`/api/questions/random?categoryId=${encodeURIComponent(categoryId)}&limit=50`, { auth: false });
-    const questions = await res.json();
+    const rawQs = await res.json();
+    const questions = Array.isArray(rawQs) ? rawQs : (rawQs.questions || []);
     if (!res.ok || !questions.length) { alert('หมวดนี้ยังไม่มีข้อสอบที่เปิดใช้งาน'); return; }
     currentSubject = {
       id: `mongo:${categoryId}`,

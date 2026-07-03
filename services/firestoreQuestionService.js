@@ -1,5 +1,6 @@
 const { db } = require('../src/firebaseAdmin');
 const { mapDoc } = require('./firestoreHelper');
+const firestoreExamPackService = require('./firestoreExamPackService');
 
 async function getQuestions({ categoryId, difficulty, isActive, search, includeInactive } = {}) {
   let query = db.collection('questions');
@@ -50,7 +51,24 @@ async function getQuestionById(id) {
 }
 
 async function getRandomQuestions(categoryId, limit = 10) {
-  const finalLimit = Math.min(Math.max(limit, 1), 100); // limit must be between 1 and 100
+  const finalLimit = Math.min(Math.max(limit, 1), 100);
+
+  if (categoryId) {
+    try {
+      const packQuestions = await firestoreExamPackService.getRandomQuestionsFromPack(categoryId, finalLimit);
+      if (packQuestions !== null) {
+        const indexData = await firestoreExamPackService.getPublishedCategoryPack(categoryId);
+        const result = packQuestions;
+        result.packVersion = indexData ? indexData.version : null;
+        result.categoryId = categoryId;
+        result.generatedFromPack = true;
+        return result;
+      }
+      console.warn(`[EXAM-PACK-WARNING] No published or fresh exam pack found for category ${categoryId}. Falling back to database query.`);
+    } catch (err) {
+      console.error(`Error loading from exam pack for category ${categoryId}:`, err);
+    }
+  }
 
   let query = db.collection('questions').where('isActive', '==', true);
   if (categoryId) {
@@ -70,7 +88,11 @@ async function getRandomQuestions(categoryId, limit = 10) {
     [questions[i], questions[j]] = [questions[j], questions[i]];
   }
 
-  return questions.slice(0, finalLimit);
+  const fallbackResult = questions.slice(0, finalLimit);
+  fallbackResult.packVersion = null;
+  fallbackResult.categoryId = categoryId || null;
+  fallbackResult.generatedFromPack = false;
+  return fallbackResult;
 }
 
 async function createQuestion(data) {
@@ -112,6 +134,10 @@ async function createQuestion(data) {
 
   await newDocRef.set(payload);
   const createdDoc = await newDocRef.get();
+
+  // Mark category pack as stale
+  firestoreExamPackService.markPackStale(data.categoryId);
+
   return mapDoc(createdDoc);
 }
 
@@ -176,6 +202,15 @@ async function updateQuestion(id, data) {
   }
 
   const updatedDoc = await docRef.get();
+  
+  // Mark pack stale for current category and old category (if changed)
+  const newCatId = updatedDoc.data().categoryId;
+  const oldCatId = doc.data().categoryId;
+  firestoreExamPackService.markPackStale(newCatId);
+  if (oldCatId && oldCatId !== newCatId) {
+    firestoreExamPackService.markPackStale(oldCatId);
+  }
+
   return mapDoc(updatedDoc);
 }
 
@@ -192,6 +227,10 @@ async function deleteQuestion(id) {
     isActive: false,
     updatedAt: new Date()
   });
+
+  // Mark category pack as stale
+  const catId = doc.data().categoryId;
+  firestoreExamPackService.markPackStale(catId);
 
   return { success: true };
 }
@@ -308,6 +347,13 @@ async function importQuestions(items) {
     };
     await newDocRef.set(payload);
     imported++;
+  }
+
+  if (imported > 0) {
+    const importedCategoryIds = [...new Set(candidates.map(c => c.payload.categoryId))];
+    for (const catId of importedCategoryIds) {
+      firestoreExamPackService.markPackStale(catId);
+    }
   }
 
   return { imported, failed: failed.length, errors: failed.slice(0, 50) };

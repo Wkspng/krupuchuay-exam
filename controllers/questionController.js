@@ -84,7 +84,12 @@ async function getRandomQuestions(req, res) {
       return res.status(400).json({ error: 'Invalid categoryId' });
     }
     const questions = await firestoreQuestionService.getRandomQuestions(req.query.categoryId, limit);
-    return res.json(questions);
+    return res.json({
+      questions,
+      packVersion: questions.packVersion || null,
+      categoryId: questions.categoryId || req.query.categoryId || null,
+      generatedFromPack: questions.generatedFromPack || false
+    });
   } catch (error) {
     return sendModelError(res, error);
   }
