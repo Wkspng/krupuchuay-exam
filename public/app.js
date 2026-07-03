@@ -2778,6 +2778,7 @@ async function renderQuestionBank() {
     }, {});
     renderManagedCategories();
     await loadManagedQuestions();
+    await loadExamPacksStatus();
   } catch (error) {
     showQuestionBankError(error.message);
   }
@@ -3297,6 +3298,171 @@ async function deleteExamSet(id) {
     await adminRequest(`/api/exam-sets/${id}`, { method: 'DELETE' });
     await renderExamSetAdmin();
   } catch (error) { showExamSetAdminError(error.message); }
+}
+
+// ===== EXAM PACK MANAGEMENT UI =====
+async function loadExamPacksStatus() {
+  const tbody = document.getElementById('examPackManagerList');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color: #888;">กำลังโหลดสถานะ...</td></tr>';
+  
+  try {
+    const res = await apiFetch('/api/admin/exam-packs/status');
+    if (!res.ok) {
+      throw new Error('ไม่สามารถดึงข้อมูลสถานะได้');
+    }
+    const data = await res.json();
+    tbody.innerHTML = '';
+    
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color: #888;">ไม่พบข้อมูลหมวดวิชา</td></tr>';
+      return;
+    }
+    
+    data.forEach(pack => {
+      let statusHtml = '';
+      if (pack.status === 'published') {
+        statusHtml = `<span style="background: #e6f4ea; color: #137333; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem;">Published</span>`;
+      } else if (pack.status === 'stale') {
+        statusHtml = `<span style="background: #fef7e0; color: #b06000; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem;">Stale (ข้อมูลไม่อัปเดต)</span>`;
+      } else if (pack.status === 'error') {
+        const safeErr = (pack.lastError || '').replace(/"/g, '&quot;');
+        statusHtml = `<span style="background: #fce8e6; color: #c5221f; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; cursor: pointer;" title="${safeErr}" onclick="alert('ข้อผิดพลาดการคอมไพล์:\\n' + this.title)">Error ⚠️</span>`;
+      } else {
+        statusHtml = `<span style="background: #f1f3f4; color: #5f6368; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem;">Missing</span>`;
+      }
+      
+      const sizeFormatted = pack.approxSizeTotal ? (pack.approxSizeTotal / 1024).toFixed(2) + ' KB' : '0 KB';
+      const compiledDate = pack.compiledAt ? new Date(pack.compiledAt).toLocaleString('th-TH') : 'ยังไม่เคยสร้าง';
+      
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${pack.categoryName}</strong></td>
+        <td>${statusHtml}</td>
+        <td>${pack.version !== null ? 'v' + pack.version : '-'}</td>
+        <td>${pack.activeQuestionsCount} ข้อ</td>
+        <td>${pack.chunkCount} chunks</td>
+        <td>${sizeFormatted}</td>
+        <td style="font-size: 0.85rem; color: #666;">${compiledDate}</td>
+        <td>
+          <div style="display: flex; gap: 4px;">
+            <button class="btn btn-secondary btn-sm" onclick="dryRunPack('${pack.categoryId}')">Dry-Run</button>
+            <button class="btn btn-primary btn-sm" id="btnCompile-${pack.categoryId}" onclick="compilePack('${pack.categoryId}')">Compile</button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (error) {
+    console.error('loadExamPacksStatus error:', error);
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color: #c5221f;">เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+  }
+}
+
+async function dryRunPack(categoryId) {
+  try {
+    const res = await apiFetch(`/api/admin/exam-packs/dry-run/${categoryId}`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(`❌ Dry-run ล้มเหลว:\n${data.error || 'เกิดข้อผิดพลาด'}`);
+      return;
+    }
+    
+    let info = `🔍 ผลการทดสอบ Dry-run (${data.categoryName}):\n`;
+    info += `- จำนวนคำถามที่ใช้ได้ (Active): ${data.activeQuestions} ข้อ\n`;
+    info += `- จำนวน Chunks โดยประมาณ: ${data.estimatedChunkCount} chunks\n`;
+    info += `- ขนาดรวมโดยประมาณ: ${(data.estimatedSizeBytes / 1024).toFixed(2)} KB\n`;
+    
+    if (data.warnings && data.warnings.length > 0) {
+      info += `\n⚠️ คำเตือน:\n` + data.warnings.map(w => '  - ' + w).join('\n');
+    }
+    
+    if (data.invalidQuestions && data.invalidQuestions.length > 0) {
+      info += `\n❌ ข้อสอบที่ข้อมูลไม่ถูกต้อง (${data.invalidQuestions.length} ข้อ):\n` + 
+              data.invalidQuestions.slice(0, 10).map(q => `  - ID: ${q.id} (ข้อที่ ${q.index + 1}): ${q.reason}`).join('\n');
+      if (data.invalidQuestions.length > 10) {
+        info += `\n  - และอื่นๆ อีก ${data.invalidQuestions.length - 10} ข้อ`;
+      }
+    } else {
+      info += `\n✅ ข้อมูลข้อสอบทั้งหมดถูกต้องพร้อม Compile!`;
+    }
+    
+    alert(info);
+  } catch (error) {
+    alert(`เกิดข้อผิดพลาด: ${error.message}`);
+  }
+}
+
+async function compilePack(categoryId) {
+  const btn = document.getElementById(`btnCompile-${categoryId}`);
+  const originalText = btn ? btn.textContent : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Compiling...';
+  }
+  
+  try {
+    const res = await apiFetch(`/api/admin/exam-packs/compile/${categoryId}`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(`❌ Compile ล้มเหลว:\n${data.error || 'เกิดข้อผิดพลาด'}`);
+      return;
+    }
+    
+    alert(`✅ Compile Exam Pack สำเร็จ!\n- หมวดวิชา: ${data.categoryName}\n- เวอร์ชันใหม่: v${data.version}\n- จำนวนข้อสอบที่อัปเดต: ${data.totalQuestions} ข้อ\n- จำนวนไฟล์แบ่งส่วน: ${data.chunkCount} chunks`);
+    await loadExamPacksStatus();
+  } catch (error) {
+    alert(`เกิดข้อผิดพลาด: ${error.message}`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+}
+
+async function compileAllPacks() {
+  if (!confirm('⚠️ ยืนยันการคอมไพล์ชุดข้อสอบในทุกหมวดวิชา?')) {
+    return;
+  }
+  
+  const btn = document.getElementById('btnCompileAllPacks');
+  const originalText = btn ? btn.textContent : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Compiling All...';
+  }
+  
+  try {
+    const res = await apiFetch('/api/admin/exam-packs/compile-all', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(`❌ การ Compile ทั้งหมดล้มเหลว:\n${data.error || 'เกิดข้อผิดพลาด'}`);
+      return;
+    }
+    
+    let report = `📊 สรุปผลการคอมไพล์ทั้งหมด:\n`;
+    report += `- สำเร็จ: ${data.compiledCount} หมวดวิชา\n`;
+    report += `- ล้มเหลว: ${data.failedCount} หมวดวิชา\n`;
+    
+    if (data.results && data.results.length > 0) {
+      report += `\n✅ หมวดวิชาที่สำเร็จ:\n` + data.results.map(r => `  - ${r.categoryName} (v${r.version}, ${r.totalQuestions} ข้อ)`).join('\n');
+    }
+    
+    if (data.errors && data.errors.length > 0) {
+      report += `\n❌ หมวดวิชาที่ล้มเหลว:\n` + data.errors.map(e => `  - ${e.categoryName}: ${e.error}`).join('\n');
+    }
+    
+    alert(report);
+    await loadExamPacksStatus();
+  } catch (error) {
+    alert(`เกิดข้อผิดพลาด: ${error.message}`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
 }
 
 // ===== INIT =====

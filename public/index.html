@@ -260,6 +260,35 @@
     </section>
 
     <section class="bank-section">
+      <div class="bank-section-heading">
+        <h3>📦 จัดการ Exam Pack (ลด Firestore Reads)</h3>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-primary btn-sm" id="btnCompileAllPacks" onclick="compileAllPacks()">Compile ทุกหมวดวิชา</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadExamPacksStatus()">🔄 รีเฟรชสถานะ</button>
+        </div>
+      </div>
+      <div class="bank-table-wrap">
+        <table class="bank-table">
+          <thead>
+            <tr>
+              <th>หมวดข้อสอบ</th>
+              <th>สถานะแพ็กเกจ</th>
+              <th>เวอร์ชัน</th>
+              <th>ข้อสอบ (Active)</th>
+              <th>จำนวน Chunks</th>
+              <th>ขนาดประมาณ</th>
+              <th>คอมไพล์ล่าสุดเมื่อ</th>
+              <th>การดำเนินการ</th>
+            </tr>
+          </thead>
+          <tbody id="examPackManagerList">
+            <tr><td colspan="8" style="text-align:center; color: #888;">กำลังโหลดสถานะ...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="bank-section">
       <div class="bank-section-heading"><h3>คลังข้อสอบ</h3><button class="btn btn-secondary btn-sm" onclick="resetQuestionForm()">+ เพิ่มข้อสอบใหม่</button></div>
       <div class="bank-filter-grid">
         <select id="questionFilterCategory" onchange="loadManagedQuestions()"></select>
@@ -306,6 +335,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-<script src="app.js?v=1.2.0"></script>
+<script src="app.js?v=1.2.1"></script>
 </body>
 </html>

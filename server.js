@@ -13,6 +13,7 @@ const examAttemptRoutes = require('./routes/examAttemptRoutes');
 const examSetRoutes = require('./routes/examSetRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const statsRoutes = require('./routes/statsRoutes');
 const { authenticateToken, optionalAuthenticateToken } = require('./middleware/auth');
 const { globalLimiter } = require('./middleware/rateLimiter');
@@ -78,6 +79,7 @@ function createApp() {
   app.use('/api/stats', statsRoutes);
   app.use('/api/auth', authRateLimiter, authRoutes);
   app.use('/api/users', userRoutes);
+  app.use('/api/admin', adminRoutes);
 
   // Stateless session endpoint – verifies the Firebase ID Token from the
   // Authorization header and returns the caller's Firestore user profile.
