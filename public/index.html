@@ -180,6 +180,11 @@
     <div class="user-list" id="pendingUserList" style="margin-bottom:24px"></div>
     <p class="page-title" style="font-size:17px;margin-bottom:12px;">รายชื่อผู้ใช้ทั้งหมด</p>
     <div class="user-list" id="userList"></div>
+    <div id="userPagination" class="pagination-controls" style="margin-top:16px;margin-bottom:24px;display:flex;justify-content:center;align-items:center;gap:12px">
+      <button class="btn btn-secondary btn-sm" id="btnUserPrev" onclick="changeAdminUsersPage(-1)">ก่อนหน้า</button>
+      <span id="userPageLabel" style="font-weight:500;color:var(--text)">หน้า 1</span>
+      <button class="btn btn-secondary btn-sm" id="btnUserNext" onclick="changeAdminUsersPage(1)">ถัดไป</button>
+    </div>
     <p class="page-title" style="font-size:17px;margin:20px 0 12px;">➕ เพิ่มผู้ใช้ใหม่</p>
     <div class="add-user-form">
       <input type="text" id="newName" placeholder="ชื่อ-นามสกุล">
@@ -299,6 +304,6 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-<script src="app.js?v=1.1.6"></script>
+<script src="app.js?v=1.1.7"></script>
 </body>
 </html>

@@ -33,13 +33,56 @@ function validApprovalStatus(value) {
 
 async function getUsers(req, res) {
   try {
-    const snapshot = await firestoreDb.collection('users').get();
+    const { limit, startAfter, role, approvalStatus, status } = req.query;
+    
+    let limitNum = Number.parseInt(limit, 10);
+    if (Number.isNaN(limitNum) || limitNum < 1) limitNum = 50;
+    limitNum = Math.min(Math.max(limitNum, 1), 100);
+
+    let startAfterDoc = null;
+    if (startAfter && typeof startAfter === 'string' && startAfter.trim()) {
+      const doc = await firestoreDb.collection('users').doc(startAfter).get();
+      if (doc.exists) {
+        startAfterDoc = doc;
+      }
+    }
+
+    let query = firestoreDb.collection('users');
+    
+    if (role) {
+      query = query.where('role', '==', role);
+    }
+    
+    const statusVal = approvalStatus || status;
+    if (statusVal) {
+      query = query.where('approvalStatus', '==', statusVal);
+    }
+
+    query = query.orderBy('createdAt', 'desc');
+
+    if (startAfterDoc) {
+      query = query.startAfter(startAfterDoc);
+    }
+
+    // limitNum + 1 to check if there is a next page
+    query = query.limit(limitNum + 1);
+
+    const snapshot = await query.get();
     const users = [];
     snapshot.forEach(doc => {
       users.push({ id: doc.id, ...doc.data() });
     });
-    users.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    return res.json(users.map(publicUser));
+
+    const hasNextPage = users.length > limitNum;
+    const paginatedUsers = hasNextPage ? users.slice(0, limitNum) : users;
+    const nextCursor = hasNextPage && paginatedUsers.length > 0 ? paginatedUsers[paginatedUsers.length - 1].id : null;
+
+    return res.json({
+      users: paginatedUsers.map(publicUser),
+      nextCursor,
+      hasNextPage,
+      pageSize: limitNum
+    });
   } catch (error) {
     console.error('getUsers error:', error);
     return res.status(500).json({ error: 'Unable to load users' });
@@ -48,12 +91,15 @@ async function getUsers(req, res) {
 
 async function getPendingUsers(req, res) {
   try {
-    const snapshot = await firestoreDb.collection('users').where('approvalStatus', '==', 'pending').get();
+    const snapshot = await firestoreDb.collection('users')
+      .where('approvalStatus', '==', 'pending')
+      .orderBy('createdAt', 'desc')
+      .limit(50)
+      .get();
     const users = [];
     snapshot.forEach(doc => {
       users.push({ id: doc.id, ...doc.data() });
     });
-    users.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     return res.json(users.map(publicUser));
   } catch (error) {
     console.error('getPendingUsers error:', error);

@@ -1861,7 +1861,7 @@ async function showPage(id) {
   
   if (id === 'home') await buildHome();
   if (id === 'stats') await renderStats();
-  if (id === 'admin') await renderAdmin();
+  if (id === 'admin') await renderAdmin(true);
   if (id === 'question-bank') await renderQuestionBank();
   if (id === 'exam-sets') await renderExamSets();
   if (id === 'exam-set-admin') await renderExamSetAdmin();
@@ -2246,10 +2246,11 @@ function renderCategoryStats(categoryStats) {
 }
 
 async function populateStatsAdminFilters() {
-  const [users, categories] = await Promise.all([
-    adminRequest('/api/users'),
+  const [usersResponse, categories] = await Promise.all([
+    adminRequest('/api/users?limit=100'),
     adminRequest('/api/categories?includeInactive=true'),
   ]);
+  const users = Array.isArray(usersResponse) ? usersResponse : (usersResponse.users || []);
   const userSelect = document.getElementById('statsUserFilter');
   const categorySelect = document.getElementById('statsCategoryFilter');
   const selectedUser = userSelect.value;
@@ -2439,14 +2440,56 @@ async function exportAttempts() {
 }
 
 // ===== ADMIN =====
+let adminUsersPage = 1;
+let adminUsersCursorStack = [null];
+let adminUsersNextCursor = null;
+let adminUsersHasNextPage = false;
 const STATUS_LABEL = { approved: '🟢 อนุมัติแล้ว', pending: '🟡 รออนุมัติ', rejected: '🔴 ถูกปฏิเสธ' };
 
-async function renderAdmin() {
+async function renderAdmin(resetPage = false) {
   await renderPendingUsers();
+  if (resetPage) {
+    adminUsersPage = 1;
+    adminUsersCursorStack = [null];
+    adminUsersNextCursor = null;
+    adminUsersHasNextPage = false;
+  }
   try {
-    const res = await apiFetch('/api/users');
+    const limit = 50;
+    const params = new URLSearchParams({ limit: String(limit) });
+    const cursor = adminUsersCursorStack[adminUsersPage - 1];
+    if (cursor) {
+      params.set('startAfter', cursor);
+    }
+    
+    const res = await apiFetch(`/api/users?${params.toString()}`);
     if (!res.ok) return;
-    const users = await res.json();
+    
+    const response = await res.json();
+    let users = [];
+    if (response && typeof response === 'object' && !Array.isArray(response)) {
+      users = response.users || [];
+      adminUsersNextCursor = response.nextCursor || null;
+      adminUsersHasNextPage = !!response.hasNextPage;
+    } else if (Array.isArray(response)) {
+      users = response;
+      adminUsersNextCursor = null;
+      adminUsersHasNextPage = false;
+    }
+    
+    const label = document.getElementById('userPageLabel');
+    if (label) {
+      label.textContent = `หน้า ${adminUsersPage}`;
+    }
+    const btnPrev = document.getElementById('btnUserPrev');
+    if (btnPrev) {
+      btnPrev.disabled = adminUsersPage <= 1;
+    }
+    const btnNext = document.getElementById('btnUserNext');
+    if (btnNext) {
+      btnNext.disabled = !adminUsersHasNextPage;
+    }
+
     document.getElementById('userList').innerHTML = users.map(u => {
       const status = u.approvalStatus;
       const statusBadge = `<span class="status-badge status-${status}">${STATUS_LABEL[status] || status}</span>`;
@@ -2468,6 +2511,21 @@ async function renderAdmin() {
       return `<div class="user-item"><div class="user-info"><div class="uname">${u.role==='admin'?'👑':'👤'} ${u.name} ${statusBadge}${legacyBadge}</div><div class="urole">${accountLabel} · ${u.role} · สมัครเมื่อ ${createdAt}</div></div><div class="pending-actions">${actions.join('')}</div></div>`;
     }).join('');
   } catch (e) {}
+}
+
+function changeAdminUsersPage(offset) {
+  if (offset === 1) {
+    if (adminUsersHasNextPage) {
+      adminUsersCursorStack[adminUsersPage] = adminUsersNextCursor;
+      adminUsersPage += 1;
+      renderAdmin(false);
+    }
+  } else if (offset === -1) {
+    if (adminUsersPage > 1) {
+      adminUsersPage -= 1;
+      renderAdmin(false);
+    }
+  }
 }
 
 async function renderPendingUsers() {
