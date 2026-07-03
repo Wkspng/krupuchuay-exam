@@ -116,23 +116,33 @@ async function getExamSets(includeInactive = false) {
   }
 
   const snapshot = await query.get();
-  const sets = [];
-  
-  // Resolve creator user profiles
-  // To avoid individual user calls, let's load users in a Map
-  const userSnapshot = await db.collection('users').get();
-  const userMap = new Map();
-  userSnapshot.forEach(doc => {
-    userMap.set(doc.id, { name: doc.data().name || '', email: doc.data().email || '' });
-  });
-
+    const rawSets = [];
   snapshot.forEach(doc => {
     const mapped = mapDoc(doc);
-    if (mapped) {
-      const creator = userMap.get(mapped.createdBy);
-      mapped.createdBy = creator ? { id: mapped.createdBy, _id: mapped.createdBy, ...creator } : { id: mapped.createdBy, _id: mapped.createdBy, name: 'ผู้ใช้งานระบบ', email: '' };
-      sets.push(mapped);
-    }
+    if (mapped) rawSets.push(mapped);
+  });
+
+  // Resolve creator user profiles in batch
+  const uniqueCreatorIds = [...new Set(rawSets.map(s => s.createdBy).filter(Boolean))];
+  const userMap = new Map();
+  if (uniqueCreatorIds.length > 0) {
+    const refs = uniqueCreatorIds.map(uid => db.collection('users').doc(uid));
+    const snaps = await db.getAll(...refs);
+    snaps.forEach(doc => {
+      if (doc.exists) {
+        userMap.set(doc.id, { name: doc.data().name || '', email: doc.data().email || '' });
+      }
+    });
+  }
+
+  const sets = rawSets.map(mapped => {
+    const creator = userMap.get(mapped.createdBy);
+    return {
+      ...mapped,
+      createdBy: creator
+        ? { id: mapped.createdBy, _id: mapped.createdBy, ...creator }
+        : { id: mapped.createdBy, _id: mapped.createdBy, name: 'ผู้ใช้งานระบบ', email: '' }
+    };
   });
 
   // Sort by createdAt DESC

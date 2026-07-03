@@ -176,35 +176,7 @@ async function getExamAttempts({ userId, categoryId, examSetId, dateFrom, dateTo
     attempts = attempts.filter(a => a.submittedAt && new Date(a.submittedAt) <= parsedTo);
   }
 
-  // Populate user data if user attempts
-  // To avoid making individual calls, we can fetch all users or build a map
-  const userSnapshot = await db.collection('users').get();
-  const userMap = new Map();
-  userSnapshot.forEach(doc => {
-    userMap.set(doc.id, {
-      name: doc.data().name || '',
-      email: doc.data().email || '',
-      username: doc.data().username || doc.data().email || '',
-      role: doc.data().role || 'user'
-    });
-  });
-
-  attempts = attempts.map(a => {
-    if (a.userId && userMap.has(a.userId)) {
-      const u = userMap.get(a.userId);
-      return {
-        ...a,
-        userId: {
-          id: a.userId,
-          _id: a.userId,
-          ...u
-        }
-      };
-    }
-    return a;
-  });
-
-  // In-memory pagination
+  // In-memory pagination first
   let pageNum = Number.parseInt(page, 10);
   let limitNum = Number.parseInt(limit, 10);
   if (Number.isNaN(pageNum) || pageNum < 1) pageNum = 1;
@@ -216,8 +188,51 @@ async function getExamAttempts({ userId, categoryId, examSetId, dateFrom, dateTo
   const offset = (pageNum - 1) * limitNum;
   const paginatedAttempts = attempts.slice(offset, offset + limitNum);
 
+  // Populate user data only for the sliced page attempts
+  const uniqueUserIds = [...new Set(paginatedAttempts.map(a => a.userId).filter(Boolean))];
+  const userMap = new Map();
+  if (uniqueUserIds.length > 0) {
+    const refs = uniqueUserIds.map(uid => db.collection('users').doc(uid));
+    const snaps = await db.getAll(...refs);
+    snaps.forEach(doc => {
+      if (doc.exists) {
+        userMap.set(doc.id, {
+          name: doc.data().name || '',
+          email: doc.data().email || '',
+          username: doc.data().username || doc.data().email || '',
+          role: doc.data().role || 'user'
+        });
+      }
+    });
+  }
+
+  const mappedAttempts = paginatedAttempts.map(a => {
+    if (a.userId && userMap.has(a.userId)) {
+      const u = userMap.get(a.userId);
+      return {
+        ...a,
+        userId: {
+          id: a.userId,
+          _id: a.userId,
+          ...u
+        }
+      };
+    } else if (a.userId) {
+      return {
+        ...a,
+        userId: {
+          id: a.userId,
+          _id: a.userId,
+          name: 'ผู้ใช้ระบบ',
+          email: ''
+        }
+      };
+    }
+    return a;
+  });
+
   return {
-    attempts: paginatedAttempts,
+    attempts: mappedAttempts,
     pagination: {
       total,
       page: pageNum,

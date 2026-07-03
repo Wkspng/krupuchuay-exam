@@ -145,10 +145,10 @@
     <section class="stats-section" id="statsAdminFilters" style="display:none">
       <h3>ตัวกรองประวัติผู้สอบ</h3>
       <div class="bank-filter-grid">
-        <select id="statsUserFilter" onchange="loadStatsAttempts()"><option value="">ผู้ใช้ทั้งหมด</option></select>
-        <select id="statsCategoryFilter" onchange="loadStatsAttempts()"><option value="">ทุกหมวดข้อสอบ</option></select>
-        <input type="date" id="statsDateFrom" onchange="loadStatsAttempts()">
-        <input type="date" id="statsDateTo" onchange="loadStatsAttempts()">
+        <select id="statsUserFilter" onchange="loadStatsAttempts(true)"><option value="">ผู้ใช้ทั้งหมด</option></select>
+        <select id="statsCategoryFilter" onchange="loadStatsAttempts(true)"><option value="">ทุกหมวดข้อสอบ</option></select>
+        <input type="date" id="statsDateFrom" onchange="loadStatsAttempts(true)">
+        <input type="date" id="statsDateTo" onchange="loadStatsAttempts(true)">
         <button class="btn btn-secondary btn-sm" onclick="exportAttempts()">Export JSON</button>
       </div>
     </section>
@@ -163,6 +163,11 @@
           <thead><tr><th>วันที่</th><th>ผู้สอบ</th><th>หมวด</th><th>ชุดข้อสอบ / ผล</th><th>จำนวนข้อ</th><th>คะแนน</th><th>เวลาที่ใช้</th><th>รายละเอียด</th></tr></thead>
           <tbody id="historyBody"></tbody>
         </table>
+      </div>
+      <div id="historyPagination" class="pagination-controls" style="margin-top:16px;display:flex;justify-content:center;align-items:center;gap:12px">
+        <button class="btn btn-secondary btn-sm" id="btnHistoryPrev" onclick="changeHistoryPage(-1)">ก่อนหน้า</button>
+        <span id="historyPageLabel" style="font-weight:500;color:var(--text)">หน้า 1 / 1</span>
+        <button class="btn btn-secondary btn-sm" id="btnHistoryNext" onclick="changeHistoryPage(1)">ถัดไป</button>
       </div>
       <div class="question-detail" id="attemptDetail" style="display:none"></div>
     </section>
@@ -294,6 +299,6 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-<script src="app.js?v=1.1.4"></script>
+<script src="app.js?v=1.1.5"></script>
 </body>
 </html>

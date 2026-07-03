@@ -2199,6 +2199,8 @@ function retryQuiz() {
 
 // ===== STATS =====
 let statsAttempts = [];
+let historyPage = 1;
+let historyTotalPages = 1;
 
 function showStatsError(message = '') {
   const element = document.getElementById('statsError');
@@ -2298,16 +2300,18 @@ async function renderStats() {
         stats.examSetStats?.[0] ? `ทำชุดข้อสอบ: ${stats.examSetStats[0].examSetTitle} (${stats.examSetStats[0].attempts} ครั้ง)` : '',
       ]);
     }
-    await loadStatsAttempts();
+    await loadStatsAttempts(true);
   } catch (error) {
     showStatsError(error.message || 'ไม่สามารถโหลดสถิติได้');
   }
 }
 
-async function loadStatsAttempts() {
+async function loadStatsAttempts(resetPage = false) {
+  if (resetPage) historyPage = 1;
   try {
     const isAdmin = currentUser?.role === 'admin';
-    const params = new URLSearchParams({ limit: '100' });
+    const limit = 20;
+    const params = new URLSearchParams({ limit: String(limit), page: String(historyPage) });
     if (isAdmin) {
       const userId = document.getElementById('statsUserFilter').value;
       const categoryId = document.getElementById('statsCategoryFilter').value;
@@ -2320,9 +2324,35 @@ async function loadStatsAttempts() {
     }
     const response = await adminRequest(`/api/exam-attempts?${params.toString()}`);
     statsAttempts = response.attempts || [];
+    
+    const pagination = response.pagination || {};
+    historyTotalPages = pagination.pages || 1;
+    historyPage = pagination.page || 1;
+    
+    const label = document.getElementById('historyPageLabel');
+    if (label) {
+      label.textContent = `หน้า ${historyPage} / ${historyTotalPages}`;
+    }
+    const btnPrev = document.getElementById('btnHistoryPrev');
+    if (btnPrev) {
+      btnPrev.disabled = historyPage <= 1;
+    }
+    const btnNext = document.getElementById('btnHistoryNext');
+    if (btnNext) {
+      btnNext.disabled = historyPage >= historyTotalPages;
+    }
+    
     document.getElementById('attemptHistoryTitle').textContent = isAdmin ? 'ประวัติผู้สอบทั้งหมด' : 'ประวัติการทดสอบของฉัน';
     renderStatsAttempts(isAdmin);
   } catch (error) { showStatsError(error.message || 'ไม่สามารถโหลดประวัติได้'); }
+}
+
+function changeHistoryPage(offset) {
+  const targetPage = historyPage + offset;
+  if (targetPage >= 1 && targetPage <= historyTotalPages) {
+    historyPage = targetPage;
+    loadStatsAttempts(false);
+  }
 }
 
 function renderStatsAttempts(isAdmin) {
