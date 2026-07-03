@@ -1472,6 +1472,19 @@ async function apiFetch(url, options = {}, retry = true) {
     }
   }
 
+  // Attempt to attach Firebase App Check token
+  try {
+    const appCheckInstance = window.firebase && firebase.appCheck ? firebase.appCheck() : null;
+    if (appCheckInstance) {
+      const appCheckResult = await appCheckInstance.getToken(false);
+      if (appCheckResult && appCheckResult.token) {
+        headers['X-Firebase-AppCheck'] = appCheckResult.token;
+      }
+    }
+  } catch (err) {
+    console.warn('[APP-CHECK-WARNING] Failed to obtain App Check token:', err);
+  }
+
   const response = await fetch(url, { ...options, headers });
 
   if ((response.status === 401 || response.status === 403) && needsAuth && retry) {
@@ -1486,10 +1499,30 @@ async function apiFetch(url, options = {}, retry = true) {
             ...refreshedHeaders
           }
         });
+        
+        if (retryResponse.status === 429) {
+          try {
+            const clone = retryResponse.clone();
+            const errBody = await clone.json();
+            alert(errBody.message || 'มีการใช้งานถี่เกินไป กรุณารอสักครู่แล้วลองใหม่');
+          } catch (e) {
+            alert('มีการใช้งานถี่เกินไป กรุณารอสักครู่แล้วลองใหม่');
+          }
+        }
         return retryResponse;
       } catch (retryError) {
         console.error('Retry auth error:', retryError);
       }
+    }
+  }
+
+  if (response.status === 429) {
+    try {
+      const clone = response.clone();
+      const errBody = await clone.json();
+      alert(errBody.message || 'มีการใช้งานถี่เกินไป กรุณารอสักครู่แล้วลองใหม่');
+    } catch (e) {
+      alert('มีการใช้งานถี่เกินไป กรุณารอสักครู่แล้วลองใหม่');
     }
   }
 
@@ -1510,6 +1543,28 @@ async function initializeAppAuth() {
       appId: '1:128921965845:web:dfd42886b64570f655451c',
     };
     firebase.initializeApp(config);
+
+    // Initialize Firebase App Check with reCAPTCHA v3 site key (non-secret)
+    const RECAPTCHA_SITE_KEY = '6Lcc-bcqAAAAAO0P4V9pZf06zYk1U6D90T5oJ1Gv'; // TODO: Replace with your actual reCAPTCHA v3 site key in production
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      try {
+        const appCheck = firebase.appCheck();
+        appCheck.activate(RECAPTCHA_SITE_KEY, true);
+        console.log('Firebase App Check initialized.');
+      } catch (err) {
+        console.warn('App Check failed to initialize:', err);
+      }
+    } else {
+      // Localhost debug provider
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+      try {
+        const appCheck = firebase.appCheck();
+        appCheck.activate(RECAPTCHA_SITE_KEY, true);
+        console.log('Firebase App Check initialized in debug mode.');
+      } catch (err) {
+        console.warn('App Check failed to initialize in debug mode:', err);
+      }
+    }
     auth = firebase.auth();
     
     let firstCheck = true;
