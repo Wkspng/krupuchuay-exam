@@ -1,5 +1,6 @@
 const { db } = require('../src/firebaseAdmin');
-const { mapDoc } = require('./firestoreHelper');
+const { mapDoc, serializeValue } = require('./firestoreHelper');
+const firestoreUserStatsSummaryService = require('./firestoreUserStatsSummaryService');
 
 function categorySummary(attempts) {
   const groups = new Map();
@@ -41,55 +42,77 @@ function examSetSummary(attempts) {
 }
 
 async function getMyStats(userId) {
-  // Fetch up to 1000 recent attempts for user
-  const snapshot = await db.collection('examAttempts')
-    .where('userId', '==', userId)
-    .limit(1000)
-    .get();
+  const summaryDoc = await db.collection('userStatsSummary').doc(userId).get();
+  let summary;
 
-  const attempts = [];
-  snapshot.forEach(doc => {
-    const mapped = mapDoc(doc);
-    if (mapped) attempts.push(mapped);
+  if (!summaryDoc.exists) {
+    // Lazy Rebuild
+    summary = await firestoreUserStatsSummaryService.rebuildUserStatsSummary(userId);
+  } else {
+    summary = summaryDoc.data();
+  }
+
+  // Format categoryStats map into array
+  const categoryStatsArray = Object.keys(summary.categoryStats || {}).map(cid => {
+    const s = summary.categoryStats[cid];
+    return {
+      categoryName: s.categoryName,
+      attempts: s.attempts,
+      scoreTotal: s.scorePercentSum || 0,
+      averageScore: s.averageScore
+    };
   });
 
-  // In-memory sort by submittedAt DESC
-  attempts.sort((a, b) => {
-    const timeA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
-    const timeB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
-    return timeB - timeA;
-  });
+  // Format examSetStats map into array
+  const examSetStatsArray = Object.keys(summary.examSetStats || {}).map(esid => {
+    const s = summary.examSetStats[esid];
+    return {
+      examSetId: esid === 'null' || esid === 'undefined' ? null : esid,
+      examSetTitle: s.examSetTitle,
+      attempts: s.attempts,
+      scoreTotal: s.scorePercentSum || 0,
+      passedCount: s.passedCount || 0,
+      averageScore: s.averageScore
+    };
+  }).sort((left, right) => right.attempts - left.attempts);
 
-  const totalAttempts = attempts.length;
-  const averageScore = totalAttempts
-    ? Number((attempts.reduce((total, attempt) => total + attempt.scorePercent, 0) / totalAttempts).toFixed(2))
-    : 0;
+  const mostFrequentCategory = [...categoryStatsArray].sort((a, b) => b.attempts - a.attempts)[0] || null;
+  const lowestScoreCategory = [...categoryStatsArray].sort((a, b) => a.averageScore - b.averageScore)[0] || null;
 
-  const categoryStats = categorySummary(attempts);
-  const examSetStats = examSetSummary(attempts);
-  const mostFrequentCategory = categoryStats.sort((a, b) => b.attempts - a.attempts)[0] || null;
-  const lowestScoreCategory = [...categoryStats].sort((a, b) => a.averageScore - b.averageScore)[0] || null;
-  
-  const trend = attempts
-    .slice(0, 10)
-    .reverse()
-    .map((attempt) => ({
-      submittedAt: attempt.submittedAt,
-      scorePercent: attempt.scorePercent,
-      categoryName: attempt.categoryName || 'ไม่ระบุหมวด'
-    }));
+  // Format trend: 10 items maximum, chronological order (oldest to newest)
+  const trend = (summary.trend || [])
+    .slice(-10)
+    .map(item => {
+      let submittedAtStr = '';
+      if (item.submittedAt) {
+        if (typeof item.submittedAt.toDate === 'function') {
+          submittedAtStr = item.submittedAt.toDate().toISOString();
+        } else if (item.submittedAt._seconds !== undefined) {
+          submittedAtStr = new Date(item.submittedAt._seconds * 1000).toISOString();
+        } else {
+          submittedAtStr = new Date(item.submittedAt).toISOString();
+        }
+      }
+      return {
+        submittedAt: submittedAtStr,
+        scorePercent: item.scorePercent,
+        categoryName: item.categoryName || 'ไม่ระบุหมวด'
+      };
+    });
 
-  return {
-    totalAttempts,
-    averageScore,
-    bestScore: totalAttempts ? Math.max(...attempts.map((attempt) => attempt.scorePercent)) : 0,
-    latestScore: totalAttempts ? attempts[0].scorePercent : null,
+  const responsePayload = {
+    totalAttempts: summary.totalAttempts,
+    averageScore: summary.averageScore,
+    bestScore: summary.bestScore,
+    latestScore: summary.latestScore,
     mostFrequentCategory,
     lowestScoreCategory,
     trend,
-    categoryStats,
-    examSetStats
+    categoryStats: categoryStatsArray,
+    examSetStats: examSetStatsArray
   };
+
+  return serializeValue(responsePayload);
 }
 
 async function getOverviewStats() {

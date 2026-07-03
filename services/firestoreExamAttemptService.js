@@ -1,5 +1,6 @@
 const { db } = require('../src/firebaseAdmin');
 const { mapDoc } = require('./firestoreHelper');
+const firestoreUserStatsSummaryService = require('./firestoreUserStatsSummaryService');
 
 function parseDate(value) {
   if (!value) return null;
@@ -112,6 +113,19 @@ async function createExamAttempt(data, user) {
 
   await newDocRef.set(attemptPayload);
   const createdDoc = await newDocRef.get();
+
+  if (user && user.sub) {
+    try {
+      const attempt = {
+        id: newDocRef.id,
+        ...attemptPayload
+      };
+      await firestoreUserStatsSummaryService.updateUserStatsSummaryWithAttempt(user.sub, attempt);
+    } catch (err) {
+      console.error('Error updating userStatsSummary in createExamAttempt:', err);
+    }
+  }
+
   return mapDoc(createdDoc);
 }
 
