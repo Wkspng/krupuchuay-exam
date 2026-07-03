@@ -1727,12 +1727,32 @@ async function refreshUserStatus() {
   }
 }
 
+function isValidEmailFormat(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
+}
+
 // ===== AUTH =====
 async function doLogin() {
   const email = document.getElementById('inputUser').value.trim();
   const password = document.getElementById('inputPass').value;
   const errMsg = document.getElementById('errMsg');
   errMsg.style.display = 'none';
+  
+  if (!email) {
+    errMsg.textContent = '❌ กรุณากรอกอีเมล';
+    errMsg.style.display = 'block';
+    return;
+  }
+  if (!isValidEmailFormat(email)) {
+    errMsg.textContent = '❌ กรุณากรอกอีเมลให้ถูกต้อง เช่น example@gmail.com';
+    errMsg.style.display = 'block';
+    return;
+  }
+  if (!password) {
+    errMsg.textContent = '❌ กรุณากรอกรหัสผ่าน';
+    errMsg.style.display = 'block';
+    return;
+  }
   
   if (!auth) {
     errMsg.textContent = '❌ ระบบ Authentication ยังไม่พร้อมใช้งาน';
@@ -1780,7 +1800,13 @@ async function doLogin() {
     showPage('home');
   } catch (e) {
     console.error(e);
-    errMsg.textContent = '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือระบบขัดข้อง';
+    if (e.code === 'auth/invalid-email') {
+      errMsg.textContent = '❌ กรุณากรอกอีเมลให้ถูกต้อง เช่น example@gmail.com';
+    } else if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+      errMsg.textContent = '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+    } else {
+      errMsg.textContent = '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือระบบขัดข้อง';
+    }
     errMsg.style.display = 'block';
   }
 }
@@ -1811,8 +1837,23 @@ async function doRegister() {
   errMsg.style.display = 'none';
   successMsg.style.display = 'none';
   
-  if (!email || !password || !confirmPassword || !name) {
-    errMsg.textContent = 'กรุณากรอกข้อมูลให้ครบทุกช่อง';
+  if (!name) {
+    errMsg.textContent = 'กรุณากรอกชื่อ-นามสกุล';
+    errMsg.style.display = 'block';
+    return;
+  }
+  if (!email) {
+    errMsg.textContent = 'กรุณากรอกอีเมล';
+    errMsg.style.display = 'block';
+    return;
+  }
+  if (!isValidEmailFormat(email)) {
+    errMsg.textContent = 'กรุณากรอกอีเมลให้ถูกต้อง เช่น example@gmail.com';
+    errMsg.style.display = 'block';
+    return;
+  }
+  if (!password || !confirmPassword) {
+    errMsg.textContent = 'กรุณากรอกรหัสผ่านให้ครบถ้วน';
     errMsg.style.display = 'block';
     return;
   }
