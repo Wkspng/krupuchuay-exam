@@ -1964,6 +1964,18 @@ async function showPage(id) {
 }
 
 // ===== HOME =====
+const CATEGORY_UI_MAP = {
+  'รัฐธรรมนูญและกฎหมายการศึกษา': { part: 'p1', icon: '⚖️', legacyKeys: ['const_law', 'edu_acts'] },
+  'สังคม เศรษฐกิจ การเมือง บ้านเมือง': { part: 'p1', icon: '🌏', legacyKeys: ['social_econ'] },
+  'นโยบายรัฐ / ปฏิรูปการศึกษา': { part: 'p1', icon: '🏛️', legacyKeys: ['policy'] },
+  'ความรู้และลักษณะการเป็นข้าราชการที่ดี': { part: 'p1', icon: '🎖️', legacyKeys: ['civil_servant', 'kharachkan'] },
+  'ภาษาไทย (อ่านจับใจความ / ไวยากรณ์)': { part: 'p2', icon: '🔤', legacyKeys: ['thai_lang'] },
+  'ภาษาไทย': { part: 'p2', icon: '🔤', legacyKeys: [] },
+  'ความสามารถทั่วไป': { part: 'p2', icon: '🧠', legacyKeys: ['math', 'reasoning'] },
+  'ภาษาอังกฤษพื้นฐาน': { part: 'p2', icon: '🔡', legacyKeys: ['eng_basic'] },
+  'วิชาชีพครู': { part: 'p3', icon: '📋', legacyKeys: ['ethics', 'prof_std'] }
+};
+
 async function fetchHistory() {
   try {
     const res = await apiFetch('/api/history/' + currentUser.username);
@@ -1975,38 +1987,149 @@ async function fetchHistory() {
 async function buildHome() {
   const hist = await fetchHistory();
   let html = '';
-  PARTS.forEach(pt => {
-    const subs = SUBJECTS.filter(s => s.part === pt.id);
-    html += `<div class="part-label">${pt.icon} ${pt.name} <span style="font-size:11px;color:var(--accent);font-weight:400;text-transform:none;letter-spacing:0">${pt.score}</span></div><div class="subject-grid">`;
-    subs.forEach(sub => {
-      const qlen = QB[sub.id]?.length || 0;
-      const subHist = hist.filter(h => h.subjectId === sub.id);
-      const best = subHist.length ? Math.max(...subHist.map(h => h.pct)) : null;
-      const scoreHtml = best !== null ? `<span class="subject-score" style="background:${best>=70?'rgba(46,204,113,.15)':'rgba(231,76,60,.15)'};color:${best>=70?'#2ecc71':'#e74c3c'}">สูงสุด ${best}%</span>` : '';
-      const partBadge = `<span class="part-badge" style="background:${pt.bg};color:${pt.tc}">ส่วน${pt.id.replace('p','')}</span>`;
-      html += `<div class="subject-card" onclick="startQuiz('${sub.id}')">${partBadge}${scoreHtml}<div class="subject-icon">${sub.icon}</div><div class="subject-name">${sub.name}</div><div class="subject-count">${qlen} ข้อ · ย้อนหลัง 10 ปี</div></div>`;
-    });
-    html += '</div>';
-  });
+  let categories = [];
+  let useFallback = false;
+
   try {
     const res = await apiFetch('/api/categories');
-    if (res.ok) mongoQuizCategories = await res.json();
-    if (mongoQuizCategories.length) {
-      html += '<div class="part-label">📚 คลังข้อสอบจากฐานข้อมูล <span style="font-size:11px;color:var(--accent);font-weight:400;text-transform:none;letter-spacing:0">ข้อสอบที่เพิ่มโดยผู้ดูแล</span></div><div class="subject-grid">';
-      mongoQuizCategories.forEach(category => {
-        html += `<div class="subject-card" onclick="startMongoQuiz('${category._id}')"><div class="subject-icon">📚</div><div class="subject-name">${category.name}</div><div class="subject-count">ทำข้อสอบจากคลัง MongoDB</div></div>`;
+    if (res.ok) {
+      categories = await res.json();
+      mongoQuizCategories = categories;
+      // Filter to only active categories with questions
+      categories = categories.filter(c => c.isActive === true && (c.totalQuestions > 0));
+      if (categories.length === 0) {
+        useFallback = true;
+      }
+    } else {
+      useFallback = true;
+    }
+  } catch (e) {
+    useFallback = true;
+  }
+
+  if (useFallback) {
+    console.warn('⚠️ [API-FALLBACK] Failed to load Firestore categories or list is empty. Using hardcoded fallback with deduplication.');
+    
+    PARTS.forEach(pt => {
+      let subs = SUBJECTS.filter(s => s.part === pt.id);
+      
+      // Deduplicate/merge civil_servant and kharachkan for fallback
+      const hasCivilServant = subs.some(s => s.id === 'civil_servant');
+      const hasKharachkan = subs.some(s => s.id === 'kharachkan');
+      
+      if (hasCivilServant || hasKharachkan) {
+        subs = subs.filter(s => s.id !== 'kharachkan'); // Remove kharachkan
+        subs = subs.map(s => {
+          if (s.id === 'civil_servant') {
+            return {
+              ...s,
+              name: 'ความรู้และลักษณะการเป็นข้าราชการที่ดี',
+              legacyKeys: ['civil_servant', 'kharachkan']
+            };
+          }
+          return s;
+        });
+      }
+
+      html += `<div class="part-label">${pt.icon} ${pt.name} <span style="font-size:11px;color:var(--accent);font-weight:400;text-transform:none;letter-spacing:0">${pt.score}</span></div><div class="subject-grid">`;
+      
+      subs.forEach(sub => {
+        let qlen = 0;
+        let subHist = [];
+        
+        if (sub.legacyKeys) {
+          sub.legacyKeys.forEach(k => {
+            qlen += QB[k]?.length || 0;
+          });
+          subHist = hist.filter(h => sub.legacyKeys.includes(h.subjectId));
+        } else {
+          qlen = QB[sub.id]?.length || 0;
+          subHist = hist.filter(h => h.subjectId === sub.id);
+        }
+
+        const best = subHist.length ? Math.max(...subHist.map(h => h.pct)) : null;
+        const scoreHtml = best !== null ? `<span class="subject-score" style="background:${best>=70?'rgba(46,204,113,.15)':'rgba(231,76,60,.15)'};color:${best>=70?'#2ecc71':'#e74c3c'}">สูงสุด ${best}%</span>` : '';
+        const partBadge = `<span class="part-badge" style="background:${pt.bg};color:${pt.tc}">ส่วน${pt.id.replace('p','')}</span>`;
+        
+        html += `<div class="subject-card" onclick="startQuiz('${sub.id}')">${partBadge}${scoreHtml}<div class="subject-icon">${sub.icon}</div><div class="subject-name">${sub.name}</div><div class="subject-count">${qlen} ข้อ · ย้อนหลัง 10 ปี</div></div>`;
       });
       html += '</div>';
-    }
-  } catch (e) {}
+    });
+  } else {
+    // Render from Firestore categories grouped by part
+    PARTS.forEach(pt => {
+      // Find categories that map to this part
+      const partCats = categories.filter(cat => {
+        const ui = CATEGORY_UI_MAP[cat.name] || { part: 'p1' };
+        return ui.part === pt.id;
+      });
+
+      if (partCats.length === 0) return;
+
+      html += `<div class="part-label">${pt.icon} ${pt.name} <span style="font-size:11px;color:var(--accent);font-weight:400;text-transform:none;letter-spacing:0">${pt.score}</span></div><div class="subject-grid">`;
+      
+      partCats.forEach(cat => {
+        const ui = CATEGORY_UI_MAP[cat.name] || { part: 'p1', icon: '📚', legacyKeys: [] };
+        const qlen = cat.totalQuestions || 0;
+        
+        // Calculate best score from history, supporting legacy subjectIds
+        const subHist = hist.filter(h => h.subjectId === cat.id || h.subjectId === cat._id || ui.legacyKeys.includes(h.subjectId));
+        const best = subHist.length ? Math.max(...subHist.map(h => h.pct)) : null;
+        const scoreHtml = best !== null ? `<span class="subject-score" style="background:${best>=70?'rgba(46,204,113,.15)':'rgba(231,76,60,.15)'};color:${best>=70?'#2ecc71':'#e74c3c'}">สูงสุด ${best}%</span>` : '';
+        const partBadge = `<span class="part-badge" style="background:${pt.bg};color:${pt.tc}">ส่วน${pt.id.replace('p','')}</span>`;
+        
+        html += `<div class="subject-card" onclick="startQuiz('${cat.id || cat._id}')">${partBadge}${scoreHtml}<div class="subject-icon">${ui.icon}</div><div class="subject-name">${cat.name}</div><div class="subject-count">${qlen} ข้อ · ย้อนหลัง 10 ปี</div></div>`;
+      });
+      html += '</div>';
+    });
+  }
+
   document.getElementById('subjectContainer').innerHTML = html;
 }
 
 // ===== QUIZ =====
 async function startQuiz(subjectId) {
-  const sub = SUBJECTS.find(s => s.id === subjectId);
-  const pt = PARTS.find(p => p.id === sub.part);
-  currentSubject = { ...sub, partObj: pt };
+  let sub = SUBJECTS.find(s => s.id === subjectId);
+  let pt = null;
+  let isFirestoreCat = false;
+  let categoryName = '';
+  let categoryId = '';
+  
+  // Ensure categories are loaded
+  if (!mongoQuizCategories || mongoQuizCategories.length === 0) {
+    try {
+      const catRes = await apiFetch('/api/categories');
+      if (catRes.ok) mongoQuizCategories = await catRes.json();
+    } catch (e) {
+      console.error('Failed to load categories for quiz:', e);
+    }
+  }
+
+  // Check if subjectId matches a category ID in mongoQuizCategories
+  const matchingCat = mongoQuizCategories.find(c => c.id === subjectId || c._id === subjectId);
+  if (matchingCat) {
+    isFirestoreCat = true;
+    categoryId = matchingCat.id || matchingCat._id;
+    categoryName = matchingCat.name;
+    const ui = CATEGORY_UI_MAP[categoryName] || { part: 'p1', icon: '📚' };
+    pt = PARTS.find(p => p.id === ui.part);
+    currentSubject = {
+      id: categoryId,
+      part: ui.part,
+      name: categoryName,
+      icon: ui.icon,
+      partObj: pt,
+      isFirestoreCat: true
+    };
+  } else if (sub) {
+    pt = PARTS.find(p => p.id === sub.part);
+    currentSubject = { ...sub, partObj: pt };
+    categoryId = sub.id; // fallback
+  } else {
+    // If neither matches, show alert
+    alert('ไม่พบหมวดข้อสอบที่ระบุ');
+    return;
+  }
 
   const loader = document.getElementById('authLoader');
   if (loader) loader.style.display = 'flex';
@@ -2014,30 +2137,30 @@ async function startQuiz(subjectId) {
   let pool = [];
 
   try {
-    if (!mongoQuizCategories || mongoQuizCategories.length === 0) {
-      const catRes = await apiFetch('/api/categories');
-      if (catRes.ok) mongoQuizCategories = await catRes.json();
+    let resolvedCategory = null;
+    if (isFirestoreCat) {
+      resolvedCategory = matchingCat;
+    } else {
+      let targetCatName = '';
+      switch (subjectId) {
+        case 'const_law': targetCatName = 'รัฐธรรมนูญและกฎหมายการศึกษา'; break;
+        case 'edu_acts': targetCatName = 'พ.ร.บ. การศึกษา / ข้าราชการครู'; break;
+        case 'social_econ': targetCatName = 'สังคม เศรษฐกิจ การเมือง บ้านเมือง'; break;
+        case 'policy': targetCatName = 'นโยบายรัฐ / ปฏิรูปการศึกษา'; break;
+        case 'civil_servant':
+        case 'kharachkan': targetCatName = 'ความรู้และลักษณะการเป็นข้าราชการที่ดี'; break;
+        case 'thai_lang': targetCatName = 'ภาษาไทย (อ่านจับใจความ / ไวยากรณ์)'; break;
+        case 'math':
+        case 'reasoning': targetCatName = 'ความสามารถทั่วไป'; break;
+        case 'eng_basic': targetCatName = 'ภาษาอังกฤษพื้นฐาน'; break;
+        case 'ethics':
+        case 'prof_std': targetCatName = 'วิชาชีพครู'; break;
+      }
+      resolvedCategory = mongoQuizCategories.find(c => String(c.name).trim() === targetCatName);
     }
 
-    let targetCatName = '';
-    switch (subjectId) {
-      case 'const_law': targetCatName = 'รัฐธรรมนูญและกฎหมายการศึกษา'; break;
-      case 'edu_acts': targetCatName = 'พ.ร.บ. การศึกษา / ข้าราชการครู'; break;
-      case 'social_econ': targetCatName = 'สังคม เศรษฐกิจ การเมือง บ้านเมือง'; break;
-      case 'policy': targetCatName = 'นโยบายรัฐ / ปฏิรูปการศึกษา'; break;
-      case 'civil_servant':
-      case 'kharachkan': targetCatName = 'ความรู้และลักษณะการเป็นข้าราชการที่ดี'; break;
-      case 'thai_lang': targetCatName = 'ภาษาไทย (อ่านจับใจความ / ไวยากรณ์)'; break;
-      case 'math':
-      case 'reasoning': targetCatName = 'ความสามารถทั่วไป'; break;
-      case 'eng_basic': targetCatName = 'ภาษาอังกฤษพื้นฐาน'; break;
-      case 'ethics':
-      case 'prof_std': targetCatName = 'วิชาชีพครู'; break;
-    }
-
-    const category = mongoQuizCategories.find(c => String(c.name).trim() === targetCatName);
-    if (category) {
-      const qRes = await apiFetch(`/api/questions/random?categoryId=${encodeURIComponent(category._id)}&limit=150`, { auth: false });
+    if (resolvedCategory) {
+      const qRes = await apiFetch(`/api/questions/random?categoryId=${encodeURIComponent(resolvedCategory.id || resolvedCategory._id)}&limit=150`, { auth: false });
       if (qRes.ok) {
         const rawQs = await qRes.json();
         const dbQs = Array.isArray(rawQs) ? rawQs : (rawQs.questions || []);
@@ -2061,7 +2184,19 @@ async function startQuiz(subjectId) {
 
   // Fallback to static local QB array if database pool is empty
   if (pool.length === 0) {
-    pool = [...QB[subjectId]];
+    console.warn('⚠️ [FALLBACK] Loading questions from local hardcoded arrays.');
+    if (isFirestoreCat) {
+      const ui = CATEGORY_UI_MAP[categoryName];
+      if (ui && ui.legacyKeys) {
+        ui.legacyKeys.forEach(k => {
+          if (QB[k]) pool.push(...QB[k]);
+        });
+      }
+    } else {
+      pool = [...QB[subjectId]];
+    }
+    
+    // Shuffle the fallback pool
     for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];

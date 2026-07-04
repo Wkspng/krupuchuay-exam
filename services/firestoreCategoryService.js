@@ -25,6 +25,22 @@ async function getCategories(includeInactive = false) {
     return nameA.localeCompare(nameB);
   });
 
+  // Fetch pre-aggregated totalQuestions from examPackIndexes to avoid querying all questions
+  try {
+    const packsSnapshot = await db.collection('examPackIndexes').get();
+    const packMap = {};
+    packsSnapshot.forEach(doc => {
+      packMap[doc.id] = doc.data();
+    });
+
+    categories.forEach(cat => {
+      const pack = packMap[cat.id];
+      cat.totalQuestions = pack ? (pack.totalQuestions || 0) : 0;
+    });
+  } catch (err) {
+    console.error('Failed to attach totalQuestions to categories:', err);
+  }
+
   return categories;
 }
 
