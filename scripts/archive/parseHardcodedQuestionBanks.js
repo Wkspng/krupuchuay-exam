@@ -1,6 +1,9 @@
 /**
  * Parse all hardcoded question banks (QB.<key>) from public/app.js.
  *
+ * WARNING: Hardcoded QB arrays were removed after migration (Phase 5G-2).
+ * This script is archival and should not be run against current app.js.
+ *
  * Returns: { [key]: { questions: [...], startLine, endLine } }
  *
  * Each question has the raw shape: { q, opts, ans, explain, topic, difficulty }
