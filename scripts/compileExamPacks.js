@@ -33,15 +33,16 @@ async function processCategory(catId) {
     if (dryRun) {
       const res = await firestoreExamPackService.compileCategoryExamPack(catId, { dryRun: true });
       console.log(`\n=== DRY-RUN RESULT FOR CATEGORY: ${res.categoryName} (${res.categoryId}) ===`);
-      console.log(`Total active questions: ${res.totalQuestions}`);
-      console.log(`Expected Chunks count: ${res.chunkCount}`);
-      res.chunks.forEach(c => {
-        const sizeKB = Number((c.approxSizeBytes / 1024).toFixed(2));
-        console.log(`  - Chunk: ${c.chunkId} -> Questions: ${c.questionCount} | Approx Size: ${sizeKB} KB`);
-        if (sizeKB > 700) {
-          console.warn(`    ⚠️ WARNING: Chunk size exceeds 700 KB!`);
-        }
-      });
+      console.log(`Total active questions: ${res.activeQuestions || res.totalQuestions}`);
+      console.log(`Expected Chunks count: ${res.estimatedChunkCount}`);
+      console.log(`Estimated total size: ${((res.estimatedSizeBytes || 0) / 1024).toFixed(2)} KB`);
+      if (res.warnings && res.warnings.length > 0) {
+        res.warnings.forEach(w => console.warn(`  ⚠️ ${w}`));
+      }
+      if (res.invalidQuestions && res.invalidQuestions.length > 0) {
+        console.warn(`  ❌ Invalid questions: ${res.invalidQuestions.length}`);
+        res.invalidQuestions.slice(0, 10).forEach(q => console.warn(`     - ${q.id}: ${q.reason}`));
+      }
     } else {
       console.log(`Compiling and publishing pack for category ID: ${catId}...`);
       const res = await firestoreExamPackService.compileCategoryExamPack(catId, { dryRun: false });
