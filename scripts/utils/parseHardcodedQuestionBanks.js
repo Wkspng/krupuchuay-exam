@@ -13,7 +13,7 @@ const path = require('path');
 // Derived from the startQuiz() switch statement in app.js
 const QB_KEY_TO_CATEGORY_NAME = {
   const_law: 'รัฐธรรมนูญและกฎหมายการศึกษา',
-  edu_acts: 'พ.ร.บ. การศึกษา / ข้าราชการครู',
+  edu_acts: 'รัฐธรรมนูญและกฎหมายการศึกษา',
   social_econ: 'สังคม เศรษฐกิจ การเมือง บ้านเมือง',
   policy: 'นโยบายรัฐ / ปฏิรูปการศึกษา',
   civil_servant: 'ความรู้และลักษณะการเป็นข้าราชการที่ดี',
