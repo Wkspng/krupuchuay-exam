@@ -1964,6 +1964,7 @@ async function showPage(id) {
 }
 
 // ===== HOME =====
+// Mappings from Firestore category name to respective Part (p1/p2/p3), display icon, and legacy keys for fallbacks.
 const CATEGORY_UI_MAP = {
   'รัฐธรรมนูญและกฎหมายการศึกษา': { part: 'p1', icon: '⚖️', legacyKeys: ['const_law', 'edu_acts'] },
   'สังคม เศรษฐกิจ การเมือง บ้านเมือง': { part: 'p1', icon: '🌏', legacyKeys: ['social_econ'] },
