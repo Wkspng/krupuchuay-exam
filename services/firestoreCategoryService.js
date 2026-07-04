@@ -36,6 +36,12 @@ async function getCategories(includeInactive = false) {
     categories.forEach(cat => {
       const pack = packMap[cat.id];
       cat.totalQuestions = pack ? (pack.totalQuestions || 0) : 0;
+      cat.activeQuestionsCount = pack ? (pack.totalQuestions || 0) : 0;
+      cat.packVersion = pack ? (pack.version || null) : null;
+      cat.chunkCount = pack ? (pack.chunkCount || 0) : 0;
+      cat.isPublished = pack ? (pack.isPublished || false) : false;
+      cat.isStale = pack ? (pack.isStale || false) : false;
+      cat.compiledAt = pack ? (pack.compiledAt ? (pack.compiledAt.toDate ? pack.compiledAt.toDate().toISOString() : pack.compiledAt) : null) : null;
     });
   } catch (err) {
     console.error('Failed to attach totalQuestions to categories:', err);
