@@ -638,6 +638,26 @@ async function buildHome() {
 }
 
 // ===== QUIZ =====
+function normalizeQuestionForClient(q) {
+  const questionText = q.questionText || q.q || q.text || '';
+  const choices = q.choices || q.options || q.opts || [];
+  const correctAnswerIndex =
+    Number.isInteger(q.correctAnswerIndex) ? q.correctAnswerIndex :
+    Number.isInteger(q.ans) ? q.ans :
+    Number.isInteger(q.answerIndex) ? q.answerIndex :
+    -1;
+
+  return {
+    q: questionText,
+    opts: choices,
+    ans: correctAnswerIndex,
+    explain: q.explanation || q.explain || '',
+    topic: q.topic || q.source || '',
+    difficulty: q.difficulty || 'medium',
+    id: q.id || q._id || ''
+  };
+}
+
 async function startQuiz(subjectId) {
   let pt = null;
   let categoryName = '';
@@ -688,20 +708,42 @@ async function startQuiz(subjectId) {
   let pool = [];
 
   try {
-    const qRes = await apiFetch(`/api/questions/random?categoryId=${encodeURIComponent(categoryId)}&limit=150`, { auth: false });
-    if (qRes.ok) {
-      const rawQs = await qRes.json();
-      const dbQs = Array.isArray(rawQs) ? rawQs : (rawQs.questions || []);
-      if (Array.isArray(dbQs) && dbQs.length > 0) {
-        pool = dbQs.map(q => ({
-          q: q.questionText,
-          opts: q.choices,
-          ans: q.correctAnswerIndex,
-          explain: q.explanation || '',
-          topic: q.source || '',
-          difficulty: q.difficulty || 'medium'
-        }));
+    const qRes = await apiFetch(`/api/questions/random?categoryId=${encodeURIComponent(categoryId)}&limit=100`, { auth: false });
+    let rawQsData = {};
+    try {
+      rawQsData = await qRes.json();
+    } catch (parseErr) {
+      console.error('Failed to parse random questions response JSON:', parseErr);
+    }
+    
+    const rawQs = Array.isArray(rawQsData) ? rawQsData : (rawQsData.questions || []);
+    
+    if (qRes.ok && Array.isArray(rawQs)) {
+      pool = rawQs
+        .map(normalizeQuestionForClient)
+        .filter(q =>
+          q.q &&
+          Array.isArray(q.opts) &&
+          q.opts.length >= 2 &&
+          Number.isInteger(q.ans) &&
+          q.ans >= 0
+        );
+      
+      if (pool.length === 0) {
+        console.error('[QUIZ_LOAD_FAILED] No valid questions parsed:', {
+          categoryId,
+          categoryName,
+          status: qRes.status,
+          responseShape: rawQsData,
+        });
       }
+    } else {
+      console.error('[QUIZ_LOAD_FAILED] API response not ok or questions not array:', {
+        categoryId,
+        categoryName,
+        status: qRes.status,
+        responseShape: rawQsData,
+      });
     }
   } catch (e) {
     console.error('Error fetching questions from database:', e);
