@@ -174,7 +174,7 @@ const PRACTICE_EXAM_STRUCTURE = [
 // Source of truth is now Firestore and Exam Packs.
 
 // ===== STATE =====
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.2.13';
 console.log(`App version: ${APP_VERSION}`);
 
 let authReadyResolve;
@@ -1418,9 +1418,27 @@ async function finishQuiz(timedOut = false) {
     }
   }
   
+  const isPracticeHierarchy = currentSubject.isPracticeHierarchy === true;
   const passingScore = currentSubject.examSet?.passingScorePercent ?? 60;
   const pass = isRealExamA ? (correct >= 120) : (pct >= passingScore);
-  const g = isRealExamA ? (pass ? { l: 'ผ่านเกณฑ์', c: 'grade-c' } : { l: 'ไม่ผ่านเกณฑ์', c: 'grade-d' }) : (pct >= 80 ? { l:'ดีเยี่ยม', c:'grade-a' } : pct >= 70 ? { l:'ดี', c:'grade-b' } : pct >= passingScore ? { l:'ผ่านเกณฑ์', c:'grade-c' } : { l:'ไม่ผ่านเกณฑ์', c:'grade-d' });
+  
+  let g;
+  if (isPracticeHierarchy) {
+    if (pct >= 80) {
+      g = { l: 'ดีมาก', c: 'grade-a' };
+    } else if (pct >= 60) {
+      g = { l: 'ผ่านระดับพื้นฐาน', c: 'grade-c' };
+    } else if (pct >= 40) {
+      g = { l: 'ควรทบทวนเพิ่ม', c: 'grade-d' };
+    } else {
+      g = { l: 'แนะนำให้ฝึกซ้ำ', c: 'grade-d' };
+    }
+  } else {
+    g = isRealExamA
+      ? (pass ? { l: 'ผ่านเกณฑ์', c: 'grade-c' } : { l: 'ไม่ผ่านเกณฑ์', c: 'grade-d' })
+      : (pct >= 80 ? { l: 'ดีเยี่ยม', c: 'grade-a' } : pct >= 70 ? { l: 'ดี', c: 'grade-b' } : pct >= passingScore ? { l: 'ผ่านเกณฑ์', c: 'grade-c' } : { l: 'ไม่ผ่านเกณฑ์', c: 'grade-d' });
+  }
+
   const mm = Math.floor(elapsed / 60).toString().padStart(2, '0'), ss = (elapsed % 60).toString().padStart(2, '0');
   const timeMessage = timedOut ? ' · หมดเวลา ระบบส่งข้อสอบอัตโนมัติ' : '';
   const passingMessage = isRealExamA ? ' · เกณฑ์ผ่าน 120 คะแนน (60%)' : (currentSubject.examSet ? ` · เกณฑ์ผ่าน ${passingScore}%` : '');
@@ -1448,6 +1466,9 @@ async function finishQuiz(timedOut = false) {
         </div>
       </div>
     `;
+  } else if (isPracticeHierarchy) {
+    document.getElementById('resultCard').innerHTML = `<div class="result-score pass">${pct}%</div><div class="result-label">ความแม่นยำ ${pct}% · ตอบถูก ${correct} ข้อ จาก ${total} ข้อ · ${currentSubject.name}${timeMessage}</div><div class="result-grade ${g.c}">ผลแบบฝึก: ${g.l}</div>${attemptSaveMessage ? `<p class="bank-error" style="margin-top:14px;text-align:left">${bankEscape(attemptSaveMessage)}</p>` : ''}`;
+    document.getElementById('resultStats').innerHTML = `<div class="stat-card"><div class="stat-num" style="color:var(--green)">${correct}</div><div class="stat-label">ตอบถูก</div></div><div class="stat-card"><div class="stat-num" style="color:var(--red)">${total-correct}</div><div class="stat-label">ตอบผิด</div></div><div class="stat-card"><div class="stat-num" style="color:var(--accent)">${mm}:${ss}</div><div class="stat-label">เวลาที่ใช้</div></div>`;
   } else {
     document.getElementById('resultCard').innerHTML = `<div class="result-score ${pass?'pass':'fail'}">${pct}%</div><div class="result-label">${correct} ข้อถูก จาก ${total} ข้อ · ${currentSubject.name}${passingMessage}${timeMessage}</div><div class="result-grade ${g.c}">${g.l}</div>${attemptSaveMessage ? `<p class="bank-error" style="margin-top:14px;text-align:left">${bankEscape(attemptSaveMessage)}</p>` : ''}`;
     document.getElementById('resultStats').innerHTML = `<div class="stat-card"><div class="stat-num" style="color:var(--green)">${correct}</div><div class="stat-label">ตอบถูก</div></div><div class="stat-card"><div class="stat-num" style="color:var(--red)">${total-correct}</div><div class="stat-label">ตอบผิด</div></div><div class="stat-card"><div class="stat-num" style="color:var(--accent)">${mm}:${ss}</div><div class="stat-label">เวลาที่ใช้</div></div>`;
