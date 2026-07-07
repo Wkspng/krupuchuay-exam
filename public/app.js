@@ -1057,7 +1057,6 @@ async function startPracticeQuiz(type, targetId, limit) {
     if (loader) loader.style.display = 'none';
   }
 }
-}
 
 // ===== QUIZ =====
 function normalizeQuestionForClient(q) {
