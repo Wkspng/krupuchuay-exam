@@ -115,7 +115,29 @@ const PRACTICE_EXAM_STRUCTURE = [
         title: 'ระเบียบบริหารราชการแผ่นดิน',
         categoryNames: ['ความรู้และลักษณะการเป็นข้าราชการที่ดี', 'รัฐธรรมนูญและกฎหมายการศึกษา'],
         topics: [
-          { id: 'admin_law', title: 'ระเบียบบริหารราชการแผ่นดิน', keywords: ['ระเบียบบริหารราชการแผ่นดิน', 'บริหารแผ่นดิน'] }
+          {
+            id: 'admin_law',
+            title: 'ระเบียบบริหารราชการแผ่นดิน',
+            keywords: [
+              'ระเบียบบริหารราชการ',
+              'บริหารราชการแดิน',
+              'บริหารราชการแผ่นดิน',
+              'บริหารแผ่นดิน',
+              'ส่วนกลาง',
+              'ส่วนภูมิภาค',
+              'ส่วนท้องถิ่น',
+              'กระทรวง',
+              'กรม',
+              'จังหวัด',
+              'อำเภอ',
+              'อบจ',
+              'เทศบาล',
+              'อบต',
+              'ราชการส่วนกลาง',
+              'ราชการส่วนภูมิภาค',
+              'ราชการส่วนท้องถิ่น'
+            ]
+          }
         ]
       },
       {
@@ -123,7 +145,20 @@ const PRACTICE_EXAM_STRUCTURE = [
         title: 'หลักธรรมาภิบาล',
         categoryNames: ['ความรู้และลักษณะการเป็นข้าราชการที่ดี'],
         topics: [
-          { id: 'good_gov', title: 'หลักธรรมาภิบาล / บริหารกิจการบ้านเมืองที่ดี', keywords: ['ธรรมาภิบาล', 'กิจการบ้านเมืองที่ดี'] }
+          {
+            id: 'good_gov',
+            title: 'หลักธรรมาภิบาล / บริหารกิจการบ้านเมืองที่ดี',
+            keywords: [
+              'ธรรมาภิบาล',
+              'good governance',
+              'หลักนิติธรรม',
+              'คุณธรรม',
+              'ความโปร่งใส',
+              'การมีส่วนร่วม',
+              'ความรับผิดชอบ',
+              'ความคุ้มค่า'
+            ]
+          }
         ]
       },
       {
@@ -131,7 +166,19 @@ const PRACTICE_EXAM_STRUCTURE = [
         title: 'จริยธรรมและมาตรฐานทางจริยธรรม',
         categoryNames: ['ความรู้และลักษณะการเป็นข้าราชการที่ดี', 'วิชาชีพครู'],
         topics: [
-          { id: 'ethics', title: 'มาตรฐานทางจริยธรรม / ประมวลจริยธรรม', keywords: ['จริยธรรม', 'ประมวลจริยธรรม', 'จรรยาบรรณ'] }
+          {
+            id: 'ethics',
+            title: 'มาตรฐานทางจริยธรรม / ประมวลจริยธรรม',
+            keywords: [
+              'จริยธรรม',
+              'มาตรฐานทางจริยธรรม',
+              'ประมวลจริยธรรม',
+              'integrity',
+              'ซื่อสัตย์สุจริต',
+              'ผลประโยชน์ทับซ้อน',
+              'โปร่งใส'
+            ]
+          }
         ]
       },
       {
@@ -139,7 +186,21 @@ const PRACTICE_EXAM_STRUCTURE = [
         title: 'วินัยข้าราชการ',
         categoryNames: ['ความรู้และลักษณะการเป็นข้าราชการที่ดี', 'วิชาชีพครู'],
         topics: [
-          { id: 'discipline', title: 'วินัยและการรักษาวินัย', keywords: ['วินัย', 'รักษาวินัย'] }
+          {
+            id: 'discipline',
+            title: 'วินัยและการรักษาวินัย',
+            keywords: [
+              'วินัย',
+              'วินัยข้าราชการ',
+              'ผิดวินัย',
+              'โทษทางวินัย',
+              'ภาคทัณฑ์',
+              'ตัดเงินเดือน',
+              'ลดเงินเดือน',
+              'ปลดออก',
+              'ไล่ออก'
+            ]
+          }
         ]
       },
       {
@@ -147,7 +208,19 @@ const PRACTICE_EXAM_STRUCTURE = [
         title: 'การเป็นข้าราชการที่ดี',
         categoryNames: ['ความรู้และลักษณะการเป็นข้าราชการที่ดี'],
         topics: [
-          { id: 'good_civil', title: 'หน้าที่และการเป็นข้าราชการที่ดี', keywords: ['ข้าราชการที่ดี', 'ลักษณะข้าราชการ'] }
+          {
+            id: 'good_civil',
+            title: 'หน้าที่และการเป็นข้าราชการที่ดี',
+            keywords: [
+              'ข้าราชการที่ดี',
+              'คุณลักษณะข้าราชการ',
+              'บริการประชาชน',
+              'จิตสาธารณะ',
+              'อุทิศตน',
+              'ความรับผิดชอบ',
+              'ประโยชน์ส่วนรวม'
+            ]
+          }
         ]
       },
       {
@@ -155,7 +228,22 @@ const PRACTICE_EXAM_STRUCTURE = [
         title: 'กฎหมายและระเบียบที่เกี่ยวกับการศึกษา',
         categoryNames: ['รัฐธรรมนูญและกฎหมายการศึกษา', 'วิชาชีพครู'],
         topics: [
-          { id: 'edu_law_detail', title: 'กฎหมายการศึกษา / พ.ร.บ.การศึกษา', keywords: ['พ.ร.บ.', 'พระราชบัญญัติ', 'กฎหมายการศึกษา', 'รัฐธรรมนูญ'] }
+          {
+            id: 'edu_law_detail',
+            title: 'กฎหมายการศึกษา / พ.ร.บ.การศึกษา',
+            keywords: [
+              'พระราชบัญญัติการศึกษา',
+              'พ.ร.บ.การศึกษา',
+              'ก.ค.ศ.',
+              'วิทยฐานะ',
+              'ใบอนุญาตประกอบวิชาชีพ',
+              'มาตรฐานวิชาชีพ',
+              'คุรุสภา',
+              'ข้าราชการครู',
+              'วPA',
+              'ประกันคุณภาพการศึกษา'
+            ]
+          }
         ]
       },
       {
@@ -163,7 +251,20 @@ const PRACTICE_EXAM_STRUCTURE = [
         title: 'นโยบายรัฐและการปฏิรูปการศึกษา',
         categoryNames: ['นโยบายรัฐ / ปฏิรูปการศึกษา', 'สังคม เศรษฐกิจ การเมือง บ้านเมือง'],
         topics: [
-          { id: 'policy_detail', title: 'นโยบายรัฐ / ปฏิรูปการศึกษา / ยุทธศาสตร์ชาติ', keywords: ['นโยบาย', 'ปฏิรูปการศึกษา', 'ยุทธศาสตร์ชาติ', 'เศรษฐกิจพอเพียง'] }
+          {
+            id: 'policy_detail',
+            title: 'นโยบายรัฐ / ปฏิรูปการศึกษา / ยุทธศาสตร์ชาติ',
+            keywords: [
+              'นโยบายรัฐ',
+              'ปฏิรูปการศึกษา',
+              'ยุทธศาสตร์ชาติ',
+              'แผนการศึกษาแห่งชาติ',
+              'Thailand 4.0',
+              'SDGs',
+              'เศรษฐกิจพอเพียง',
+              'การศึกษาไทย'
+            ]
+          }
         ]
       }
     ]
@@ -174,7 +275,7 @@ const PRACTICE_EXAM_STRUCTURE = [
 // Source of truth is now Firestore and Exam Packs.
 
 // ===== STATE =====
-const APP_VERSION = '1.2.13';
+const APP_VERSION = '1.2.14';
 console.log(`App version: ${APP_VERSION}`);
 
 let authReadyResolve;
@@ -998,37 +1099,58 @@ async function startPracticeQuiz(type, targetId, limit) {
     allQuestions = allQuestions.map(normalizeQuestionForClient);
 
     let filtered = [];
-    if (type === 'topic') {
-      // Filter by keywords/topic name
-      filtered = allQuestions.filter(q => {
-        const topicLower = (q.topic || '').toLowerCase();
-        const textLower = (q.q || '').toLowerCase();
-        // Match topic title directly
-        if (topicLower.includes(targetObj.title.toLowerCase())) return true;
-        // Match keywords
-        return keywords.some(kw => {
-          const kwl = kw.toLowerCase();
-          return topicLower.includes(kwl) || textLower.includes(kwl);
-        });
-      });
+    let matchedCount = 0;
 
-      // Fallback if none matched
-      if (filtered.length === 0) {
-        console.log(`No match for topic keywords: ${keywords.join(', ')}. Falling back to category pool.`);
-        filtered = allQuestions;
-      }
-    } else {
-      filtered = allQuestions;
-    }
-
-    // Filter valid ones
-    const pool = filtered.filter(q =>
+    const validAllQuestions = allQuestions.filter(q =>
       q.q &&
       Array.isArray(q.opts) &&
       q.opts.length >= 2 &&
       Number.isInteger(q.ans) &&
       q.ans >= 0
     );
+    const rawPoolCount = validAllQuestions.length;
+
+    if (type === 'topic') {
+      const topicMatches = validAllQuestions.filter(q => {
+        const fields = [
+          q.topic || '',
+          q.categoryName || '',
+          q.q || '',
+          q.explain || '',
+          q.source || ''
+        ];
+        const normalizedContent = fields
+          .map(f => String(f).toLowerCase().trim().replace(/\s+/g, ' '))
+          .join(' ');
+
+        const normalizedTitle = targetObj.title.toLowerCase().trim().replace(/\s+/g, ' ');
+        if (normalizedContent.includes(normalizedTitle)) return true;
+
+        return keywords.some(kw => {
+          const normalizedKw = kw.toLowerCase().trim().replace(/\s+/g, ' ');
+          return normalizedContent.includes(normalizedKw);
+        });
+      });
+
+      matchedCount = topicMatches.length;
+
+      if (matchedCount > 0) {
+        filtered = topicMatches;
+      } else {
+        console.warn('[PRACTICE_TOPIC_FALLBACK]', {
+          topicId: targetId,
+          topicTitle: targetObj.title,
+          keywords,
+          categoryIds
+        });
+        filtered = validAllQuestions;
+      }
+    } else {
+      filtered = validAllQuestions;
+      matchedCount = rawPoolCount;
+    }
+
+    const pool = filtered;
 
     if (pool.length === 0) {
       alert('ไม่สามารถดึงข้อสอบได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง');
@@ -1038,6 +1160,15 @@ async function startPracticeQuiz(type, targetId, limit) {
     // Shuffle and limit
     const shuffled = pool.sort(() => 0.5 - Math.random());
     const selected = shuffled.slice(0, limit);
+    const selectedCount = selected.length;
+
+    console.log('[PRACTICE_TOPIC_MATCH]', {
+      targetId,
+      title,
+      rawPoolCount,
+      matchedCount,
+      selectedCount
+    });
 
     currentQuestions = selected;
     currentQ = 0;
@@ -1096,7 +1227,9 @@ function normalizeQuestionForClient(q) {
     opts: choices,
     ans: correctAnswerIndex,
     explain: q.explanation || q.explain || '',
-    topic: q.topic || q.source || '',
+    topic: q.topic || '',
+    source: q.source || '',
+    categoryName: q.categoryName || '',
     difficulty: q.difficulty || 'medium'
   };
 }
