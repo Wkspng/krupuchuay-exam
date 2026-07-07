@@ -180,6 +180,7 @@ async function initializeAppAuth() {
             document.getElementById('appScreen').style.display = 'block';
             document.getElementById('userBadge').textContent = '👤 ' + user.name;
             document.getElementById('examSetsTab').style.display = '';
+            document.getElementById('realExamTab').style.display = '';
             
             if (user.role === 'admin') {
               document.getElementById('adminTab').style.display = '';
@@ -217,6 +218,7 @@ async function initializeAppAuth() {
         document.getElementById('loginScreen').style.display = 'flex';
         document.getElementById('appScreen').style.display = 'none';
         document.getElementById('examSetsTab').style.display = 'none';
+        document.getElementById('realExamTab').style.display = 'none';
         document.getElementById('adminTab').style.display = 'none';
         document.getElementById('questionBankTab').style.display = 'none';
         document.getElementById('examSetAdminTab').style.display = 'none';
@@ -374,6 +376,7 @@ async function doLogin() {
     document.getElementById('appScreen').style.display = 'block';
     document.getElementById('userBadge').textContent = '👤 ' + user.name;
     document.getElementById('examSetsTab').style.display = '';
+    document.getElementById('realExamTab').style.display = '';
     
     if (user.role === 'admin') {
       document.getElementById('adminTab').style.display = '';
@@ -502,6 +505,7 @@ async function doLogout() {
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('appScreen').style.display = 'none';
   document.getElementById('examSetsTab').style.display = 'none';
+  document.getElementById('realExamTab').style.display = 'none';
   document.getElementById('adminTab').style.display = 'none';
   document.getElementById('questionBankTab').style.display = 'none';
   document.getElementById('examSetAdminTab').style.display = 'none';
@@ -541,6 +545,7 @@ async function showPage(id) {
   if (id === 'question-bank') document.getElementById('questionBankTab').classList.add('active');
   if (id === 'exam-sets') document.getElementById('examSetsTab').classList.add('active');
   if (id === 'exam-set-admin') document.getElementById('examSetAdminTab').classList.add('active');
+  if (id === 'real-exam') document.getElementById('realExamTab').classList.add('active');
   
   if (id === 'home') await buildHome();
   if (id === 'stats') await renderStats();
@@ -548,6 +553,7 @@ async function showPage(id) {
   if (id === 'question-bank') await renderQuestionBank();
   if (id === 'exam-sets') await renderExamSets();
   if (id === 'exam-set-admin') await renderExamSetAdmin();
+  if (id === 'real-exam') await renderRealExamHome();
 }
 
 // ===== HOME =====
@@ -862,7 +868,18 @@ function renderQuestion() {
   const explain = answered && !isExamMode ? `<div class="explain-box">💡 <strong>เฉลย:</strong> ${q.explain}</div>` : '';
   const difficultyLabels = { easy: 'ง่าย', medium: 'ปานกลาง', hard: 'ยาก' };
   const levelText = q.difficulty ? `📊 ระดับ: ${difficultyLabels[q.difficulty] || q.difficulty}` : `📅 ปี พ.ศ. ${q.year || '-'}`;
-  document.getElementById('quizContainer').innerHTML = `<div class="question-card"><div class="q-num">ข้อที่ ${currentQ+1} จาก ${total}</div><div class="q-tags"><span class="q-tag tag-year">${levelText}</span><span class="q-tag tag-topic">🏷 ${q.topic}</span><span class="q-tag tag-part">${currentSubject.partObj.short}</span></div><div class="q-text">${q.q}</div><div class="options">${opts}</div>${explain}</div>`;
+  
+  let sectionLabel = currentSubject.partObj.short;
+  if (q.sectionKey) {
+    const secNames = {
+      analyticalAbility: 'คิดวิเคราะห์',
+      englishSkill: 'อังกฤษ',
+      goodCivilServant: 'ข้าราชการที่ดี'
+    };
+    sectionLabel = `หมวด: ${secNames[q.sectionKey] || q.sectionKey}`;
+  }
+  
+  document.getElementById('quizContainer').innerHTML = `<div class="question-card"><div class="q-num">ข้อที่ ${currentQ+1} จาก ${total}</div><div class="q-tags"><span class="q-tag tag-year">${levelText}</span><span class="q-tag tag-topic">🏷 ${q.topic}</span><span class="q-tag tag-part">${sectionLabel}</span></div><div class="q-text">${q.q}</div><div class="options">${opts}</div>${explain}</div>`;
 }
 
 function selectAnswer(i) { if (answered) return; userAnswers[currentQ] = i; answered = true; renderQuestion(); }
@@ -879,12 +896,19 @@ async function finishQuiz(timedOut = false) {
   const elapsed = timeLimitSeconds && currentSubject.examSet?.mode === 'exam' ? Math.min(rawElapsed, timeLimitSeconds) : rawElapsed;
   const correct = currentQuestions.filter((q, i) => userAnswers[i] === q.ans).length;
   const total = currentQuestions.length; const pct = Math.round(correct / total * 100);
+  
+  const isRealExamA = currentSubject.isRealExamA === true;
+  const analyticalCorrect = isRealExamA ? currentQuestions.filter((q, i) => q.sectionKey === 'analyticalAbility' && userAnswers[i] === q.ans).length : 0;
+  const englishCorrect = isRealExamA ? currentQuestions.filter((q, i) => q.sectionKey === 'englishSkill' && userAnswers[i] === q.ans).length : 0;
+  const civilCorrect = isRealExamA ? currentQuestions.filter((q, i) => q.sectionKey === 'goodCivilServant' && userAnswers[i] === q.ans).length : 0;
+
   const entry = {
     subjectId: currentSubject.id, subjectName: currentSubject.name, icon: currentSubject.icon,
     partShort: currentSubject.partObj.short, partId: currentSubject.part,
     correct, total, pct, elapsed,
     date: new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }),
-    answers: [...userAnswers]
+    answers: [...userAnswers],
+    mode: isRealExamA ? 'real_exam_a' : undefined
   };
   try {
     await apiFetch('/api/history/' + currentUser.username, {
@@ -892,18 +916,19 @@ async function finishQuiz(timedOut = false) {
       body: JSON.stringify(entry)
     });
   } catch (e) {}
+  
   let attemptSaveMessage = '';
   if (currentSubject.categoryId) {
     const attemptPayload = {
       categoryId: currentSubject.categoryId,
       guestName: currentUser ? undefined : 'Guest',
-      mode: currentSubject.examSet?.mode || 'practice',
-      examSetId: currentSubject.examSet?.id,
-      examSetTitle: currentSubject.examSet?.title,
+      mode: isRealExamA ? 'real_exam_a' : (currentSubject.examSet?.mode || 'practice'),
+      examSetId: isRealExamA ? undefined : currentSubject.examSet?.id,
+      examSetTitle: isRealExamA ? undefined : currentSubject.examSet?.title,
       totalQuestions: total,
       correctCount: correct,
       answers: currentQuestions.map((question, index) => ({
-        questionId: question.questionId,
+        questionId: question.id || question.questionId,
         questionText: question.q,
         choices: question.opts,
         selectedAnswerIndex: userAnswers[index],
@@ -914,6 +939,13 @@ async function finishQuiz(timedOut = false) {
       startedAt: new Date(quizStartTime).toISOString(),
       submittedAt: new Date().toISOString(),
       durationSeconds: elapsed,
+      ...(isRealExamA ? {
+        sectionScores: {
+          analyticalAbility: analyticalCorrect,
+          englishSkill: englishCorrect,
+          goodCivilServant: civilCorrect
+        }
+      } : {})
     };
     try {
       const response = await apiFetch('/api/exam-attempts', {
@@ -926,14 +958,42 @@ async function finishQuiz(timedOut = false) {
       }
     } catch (e) { attemptSaveMessage = 'ไม่สามารถบันทึกผลสอบได้ กรุณาลองใหม่อีกครั้ง'; }
   }
+  
   const passingScore = currentSubject.examSet?.passingScorePercent ?? 60;
-  const g = pct >= 80 ? { l:'ดีเยี่ยม', c:'grade-a' } : pct >= 70 ? { l:'ดี', c:'grade-b' } : pct >= passingScore ? { l:'ผ่านเกณฑ์', c:'grade-c' } : { l:'ไม่ผ่านเกณฑ์', c:'grade-d' };
-  const pass = pct >= passingScore;
+  const pass = isRealExamA ? (correct >= 120) : (pct >= passingScore);
+  const g = isRealExamA ? (pass ? { l: 'ผ่านเกณฑ์', c: 'grade-c' } : { l: 'ไม่ผ่านเกณฑ์', c: 'grade-d' }) : (pct >= 80 ? { l:'ดีเยี่ยม', c:'grade-a' } : pct >= 70 ? { l:'ดี', c:'grade-b' } : pct >= passingScore ? { l:'ผ่านเกณฑ์', c:'grade-c' } : { l:'ไม่ผ่านเกณฑ์', c:'grade-d' });
   const mm = Math.floor(elapsed / 60).toString().padStart(2, '0'), ss = (elapsed % 60).toString().padStart(2, '0');
   const timeMessage = timedOut ? ' · หมดเวลา ระบบส่งข้อสอบอัตโนมัติ' : '';
-  const passingMessage = currentSubject.examSet ? ` · เกณฑ์ผ่าน ${passingScore}%` : '';
-  document.getElementById('resultCard').innerHTML = `<div class="result-score ${pass?'pass':'fail'}">${pct}%</div><div class="result-label">${correct} ข้อถูก จาก ${total} ข้อ · ${currentSubject.name}${passingMessage}${timeMessage}</div><div class="result-grade ${g.c}">${g.l}</div>${attemptSaveMessage ? `<p class="bank-error" style="margin-top:14px;text-align:left">${bankEscape(attemptSaveMessage)}</p>` : ''}`;
-  document.getElementById('resultStats').innerHTML = `<div class="stat-card"><div class="stat-num" style="color:var(--green)">${correct}</div><div class="stat-label">ตอบถูก</div></div><div class="stat-card"><div class="stat-num" style="color:var(--red)">${total-correct}</div><div class="stat-label">ตอบผิด</div></div><div class="stat-card"><div class="stat-num" style="color:var(--accent)">${mm}:${ss}</div><div class="stat-label">เวลาที่ใช้</div></div>`;
+  const passingMessage = isRealExamA ? ' · เกณฑ์ผ่าน 120 คะแนน (60%)' : (currentSubject.examSet ? ` · เกณฑ์ผ่าน ${passingScore}%` : '');
+  
+  if (isRealExamA) {
+    document.getElementById('resultCard').innerHTML = `<div class="result-score ${pass?'pass':'fail'}">${correct} / 200</div><div class="result-label">คะแนนรวมสอบจริง ภาค ก${passingMessage}${timeMessage}</div><div class="result-grade ${g.c}">${g.l}</div>${attemptSaveMessage ? `<p class="bank-error" style="margin-top:14px;text-align:left">${bankEscape(attemptSaveMessage)}</p>` : ''}`;
+    document.getElementById('resultStats').innerHTML = `
+      <div class="stat-card" style="grid-column: 1/-1; text-align: left; padding: 18px 24px;">
+        <h4 style="font-family: 'Prompt', sans-serif; color: var(--gold); font-size: 15px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px;">คะแนนแยกตามส่วนการสอบ</h4>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
+          <span>1. คิดวิเคราะห์ (เต็ม 100):</span>
+          <span style="font-weight: bold; color: ${analyticalCorrect>=60?'var(--green)':'var(--red)'};">${analyticalCorrect} / 100 ข้อ</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
+          <span>2. ทักษะภาษาอังกฤษ (เต็ม 50):</span>
+          <span style="font-weight: bold; color: ${englishCorrect>=30?'var(--green)':'var(--red)'};">${englishCorrect} / 50 ข้อ</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
+          <span>3. ข้าราชการที่ดี (เต็ม 50):</span>
+          <span style="font-weight: bold; color: ${civilCorrect>=30?'var(--green)':'var(--red)'};">${civilCorrect} / 50 ข้อ</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; font-size: 14px;">
+          <span>เวลาที่ใช้ทั้งหมด:</span>
+          <span style="font-weight: bold; color: var(--accent);">${mm}:${ss} นาที</span>
+        </div>
+      </div>
+    `;
+  } else {
+    document.getElementById('resultCard').innerHTML = `<div class="result-score ${pass?'pass':'fail'}">${pct}%</div><div class="result-label">${correct} ข้อถูก จาก ${total} ข้อ · ${currentSubject.name}${passingMessage}${timeMessage}</div><div class="result-grade ${g.c}">${g.l}</div>${attemptSaveMessage ? `<p class="bank-error" style="margin-top:14px;text-align:left">${bankEscape(attemptSaveMessage)}</p>` : ''}`;
+    document.getElementById('resultStats').innerHTML = `<div class="stat-card"><div class="stat-num" style="color:var(--green)">${correct}</div><div class="stat-label">ตอบถูก</div></div><div class="stat-card"><div class="stat-num" style="color:var(--red)">${total-correct}</div><div class="stat-label">ตอบผิด</div></div><div class="stat-card"><div class="stat-num" style="color:var(--accent)">${mm}:${ss}</div><div class="stat-label">เวลาที่ใช้</div></div>`;
+  }
+  
   const showExplanation = currentSubject.examSet?.showExplanationAfterSubmit !== false;
   document.getElementById('resultReviewTitle').style.display = showExplanation ? '' : 'none';
   if (!showExplanation) {
@@ -945,7 +1005,8 @@ async function finishQuiz(timedOut = false) {
   const L = ['ก', 'ข', 'ค', 'ง'];
   document.getElementById('reviewList').innerHTML = currentQuestions.map((q, i) => {
     const ua = userAnswers[i]; const ok = ua === q.ans;
-    return `<div class="review-item ${ok?'correct-item':'wrong-item'}"><div class="q-num">ข้อ ${i+1} · ${q.topic} · ปี ${q.year} ${ok?'✅':'❌'}</div><div class="review-q">${q.q}</div><div class="review-ans">${ua!==-1?`<span class="your-ans">คำตอบคุณ: ${L[ua]}. ${q.opts[ua]}</span>`:'<span class="your-ans">ไม่ได้ตอบ</span>'}<span class="right-ans">เฉลย: ${L[q.ans]}. ${q.opts[q.ans]}</span></div><div class="explain-box" style="margin-top:8px">💡 ${q.explain}</div></div>`;
+    const reviewSection = q.sectionKey ? ` · ${q.sectionKey === 'analyticalAbility' ? 'คิดวิเคราะห์' : q.sectionKey === 'englishSkill' ? 'อังกฤษ' : 'ข้าราชการที่ดี'}` : '';
+    return `<div class="review-item ${ok?'correct-item':'wrong-item'}"><div class="q-num">ข้อ ${i+1} · ${q.topic}${reviewSection} · ปี ${q.year || '-'} ${ok?'✅':'❌'}</div><div class="review-q">${q.q}</div><div class="review-ans">${ua!==-1?`<span class="your-ans">คำตอบคุณ: ${L[ua]}. ${q.opts[ua]}</span>`:'<span class="your-ans">ไม่ได้ตอบ</span>'}<span class="right-ans">เฉลย: ${L[q.ans]}. ${q.opts[q.ans]}</span></div><div class="explain-box" style="margin-top:8px">💡 ${q.explain}</div></div>`;
   }).join('');
   showPage('result');
   buildHome();
@@ -1144,8 +1205,13 @@ function renderStatsAttempts(isAdmin) {
     const id = attempt._id || attempt.id;
     const user = attempt.userId;
     const userLabel = isAdmin ? bankEscape(user?.name || attempt.guestName || 'ผู้ใช้ที่ไม่ระบุ') : 'ฉัน';
-    const category = bankEscape(attempt.categoryName || attempt.categoryId?.name || 'ไม่ระบุหมวด');
-    const examSetLabel = attempt.examSetTitle ? `${bankEscape(attempt.examSetTitle)}<br><span class="status-badge ${attempt.passed ? 'status-approved' : 'status-rejected'}">${attempt.passed ? 'ผ่าน' : 'ไม่ผ่าน'}</span>` : '—';
+    
+    const isRealExam = attempt.mode === 'real_exam_a';
+    const category = isRealExam ? 'จำลองสอบจริง ภาค ก' : bankEscape(attempt.categoryName || attempt.categoryId?.name || 'ไม่ระบุหมวด');
+    const examSetLabel = isRealExam 
+      ? `สอบจริง ภาค ก<br><span class="status-badge ${attempt.passed ? 'status-approved' : 'status-rejected'}">${attempt.passed ? 'ผ่าน' : 'ไม่ผ่าน'}</span>`
+      : (attempt.examSetTitle ? `${bankEscape(attempt.examSetTitle)}<br><span class="status-badge ${attempt.passed ? 'status-approved' : 'status-rejected'}">${attempt.passed ? 'ผ่าน' : 'ไม่ผ่าน'}</span>` : '—');
+    
     return `<tr><td>${formatAttemptDate(attempt.submittedAt)}</td><td>${userLabel}</td><td>${category}</td><td>${examSetLabel}</td><td>${attempt.correctCount}/${attempt.totalQuestions}</td><td><span class="attempt-status">${attempt.scorePercent}%</span></td><td>${formatAttemptDuration(attempt.durationSeconds)}</td><td><button class="btn btn-secondary btn-sm" onclick="viewAttemptDetail('${id}')">ดูรายละเอียด</button></td></tr>`;
   }).join('');
 }
@@ -1155,7 +1221,7 @@ async function viewAttemptDetail(id) {
     const attempt = await adminRequest(`/api/exam-attempts/${id}`);
     const detail = document.getElementById('attemptDetail');
     if (attempt.showExplanationAfterSubmit === false && currentUser?.role !== 'admin') {
-      detail.innerHTML = `<h3>${bankEscape(attempt.examSetTitle || attempt.categoryName || 'ผลการทดสอบ')}</h3><p>คะแนน ${attempt.scorePercent}% · ${attempt.correctCount}/${attempt.totalQuestions} · เวลา ${formatAttemptDuration(attempt.durationSeconds)}</p><div class="empty-note">ชุดข้อสอบนี้ตั้งค่าไม่ให้แสดงเฉลยย้อนหลัง</div>`;
+      detail.innerHTML = `<h3>${bankEscape(attempt.mode === 'real_exam_a' ? 'สอบจริง ภาค ก' : (attempt.examSetTitle || attempt.categoryName || 'ผลการทดสอบ'))}</h3><p>คะแนน ${attempt.scorePercent}% · ${attempt.correctCount}/${attempt.totalQuestions} · เวลา ${formatAttemptDuration(attempt.durationSeconds)}</p><div class="empty-note">ชุดข้อสอบนี้ตั้งค่าไม่ให้แสดงเฉลยย้อนหลัง</div>`;
       detail.style.display = 'block';
       detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
@@ -1163,13 +1229,28 @@ async function viewAttemptDetail(id) {
     const labels = ['A', 'B', 'C', 'D'];
     const answers = attempt.answers || [];
     const answerHtml = answers.length ? answers.map((answer, index) => {
-      const selected = answer.selectedAnswerIndex === undefined ? 'ไม่ได้ตอบ' : `${labels[answer.selectedAnswerIndex]}. ${bankEscape(answer.choices?.[answer.selectedAnswerIndex] || '—')}`;
+      const selected = answer.selectedAnswerIndex === undefined || answer.selectedAnswerIndex === -1 ? 'ไม่ได้ตอบ' : `${labels[answer.selectedAnswerIndex]}. ${bankEscape(answer.choices?.[answer.selectedAnswerIndex] || '—')}`;
       const correct = answer.correctAnswerIndex === undefined ? '—' : `${labels[answer.correctAnswerIndex]}. ${bankEscape(answer.choices?.[answer.correctAnswerIndex] || '—')}`;
       return `<div class="review-item ${answer.isCorrect ? 'correct-item' : 'wrong-item'}"><div class="q-num">ข้อ ${index + 1} ${answer.isCorrect ? '✅ ถูก' : '❌ ผิด'}</div><div class="review-q">${bankEscape(answer.questionText || 'ไม่มี snapshot คำถาม')}</div><div class="review-ans"><span class="your-ans">คำตอบที่เลือก: ${selected}</span><span class="right-ans">คำตอบที่ถูก: ${correct}</span></div>${answer.explanation ? `<div class="explain-box">💡 ${bankEscape(answer.explanation)}</div>` : ''}</div>`;
     }).join('') : '<div class="empty-note">Attempt นี้ไม่มีรายละเอียดคำตอบย้อนหลัง</div>';
-    const heading = attempt.examSetTitle || attempt.categoryName || attempt.categoryId?.name || 'ผลการทดสอบ';
-    const passedLabel = attempt.examSetTitle ? ` · ${attempt.passed ? 'ผ่านเกณฑ์' : 'ไม่ผ่านเกณฑ์'}` : '';
-    detail.innerHTML = `<h3>${bankEscape(heading)}</h3><p>คะแนน ${attempt.scorePercent}% · ${attempt.correctCount}/${attempt.totalQuestions} · เวลา ${formatAttemptDuration(attempt.durationSeconds)}${passedLabel}</p>${answerHtml}`;
+    
+    const isRealExam = attempt.mode === 'real_exam_a';
+    const heading = isRealExam ? 'สอบจริง ภาค ก' : (attempt.examSetTitle || attempt.categoryName || attempt.categoryId?.name || 'ผลการทดสอบ');
+    const passedLabel = (attempt.examSetTitle || isRealExam) ? ` · ${attempt.passed ? 'ผ่านเกณฑ์' : 'ไม่ผ่านเกณฑ์'}` : '';
+    
+    let sectionScoresHtml = '';
+    if (isRealExam && attempt.sectionScores) {
+      sectionScoresHtml = `
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px 16px; margin: 10px 0 16px; font-size: 13.5px; line-height: 1.6;">
+          <strong style="color: var(--gold);">คะแนนแยกส่วน:</strong><br>
+          - คิดวิเคราะห์: ${attempt.sectionScores.analyticalAbility || 0} / 100 ข้อ<br>
+          - ภาษาอังกฤษ: ${attempt.sectionScores.englishSkill || 0} / 50 ข้อ<br>
+          - ข้าราชการที่ดี: ${attempt.sectionScores.goodCivilServant || 0} / 50 ข้อ
+        </div>
+      `;
+    }
+    
+    detail.innerHTML = `<h3>${bankEscape(heading)}</h3><p>คะแนน ${attempt.scorePercent}% · ${attempt.correctCount}/${attempt.totalQuestions} · เวลา ${formatAttemptDuration(attempt.durationSeconds)}${passedLabel}</p>${sectionScoresHtml}${answerHtml}`;
     detail.style.display = 'block';
     detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (error) { showStatsError(error.message || 'ไม่สามารถโหลดรายละเอียดผลสอบได้'); }
@@ -2123,6 +2204,159 @@ async function compileAllPacks() {
       btn.disabled = false;
       btn.textContent = originalText;
     }
+  }
+}
+
+// ===== REAL EXAM MODE ภาค ก =====
+const REAL_EXAM_A_CONFIG = {
+  title: 'สอบจริง ภาค ก',
+  totalScore: 200,
+  passScore: 120,
+  totalTimeMinutes: 300,
+  sections: {
+    analyticalAbility: {
+      name: 'ความสามารถในการคิดวิเคราะห์',
+      questionCount: 100,
+      score: 100,
+      timeMinutes: 150,
+      categoryId: '6a39436fc2e97ab3a084bc03' // ความสามารถทั่วไป
+    },
+    englishSkill: {
+      name: 'ทักษะภาษาอังกฤษ',
+      questionCount: 50,
+      score: 50,
+      timeMinutes: 90,
+      categoryId: 'VWmY01Rh4BepkdUdABoR' // ภาษาอังกฤษพื้นฐาน
+    },
+    goodCivilServant: {
+      name: 'ความรู้และลักษณะการเป็นข้าราชการที่ดี',
+      questionCount: 50,
+      score: 50,
+      timeMinutes: 60,
+      categoryId: 'ZDsmRyUzRsHwLHASHRYD' // ความรู้และลักษณะการเป็นข้าราชการที่ดี
+    }
+  }
+};
+
+async function renderRealExamHome() {
+  const container = document.getElementById('realExamContainer');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="bank-section" style="max-width: 650px; margin: 20px auto; padding: 28px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <span style="font-size: 48px; display: block; margin-bottom: 12px;">🏆</span>
+        <h2 style="font-family: 'Prompt', sans-serif; color: var(--gold); font-size: 24px; font-weight: 800; margin-bottom: 8px;">จำลองสอบจริง ภาค ก ครูผู้ช่วย</h2>
+        <p style="color: var(--muted); font-size: 14px;">ท้าทายตนเองด้วยข้อสอบจำลองเสมือนจริงตามเกณฑ์มาตรฐาน ก.ค.ศ.</p>
+      </div>
+
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 18px; margin-bottom: 22px;">
+        <h4 style="color: var(--text); font-family: 'Prompt', sans-serif; font-size: 15px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px;">โครงสร้างข้อสอบ (รวม 200 ข้อ / 300 นาที / 200 คะแนน)</h4>
+        
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13.5px;">
+          <span>1. ความสามารถในการคิดวิเคราะห์</span>
+          <span style="color: var(--accent); font-weight: 600;">100 ข้อ / 150 นาที</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13.5px;">
+          <span>2. ทักษะภาษาอังกฤษ</span>
+          <span style="color: var(--accent); font-weight: 600;">50 ข้อ / 90 นาที</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13.5px;">
+          <span>3. ความรู้และลักษณะการเป็นข้าราชการที่ดี</span>
+          <span style="color: var(--accent); font-weight: 600;">50 ข้อ / 60 นาที</span>
+        </div>
+      </div>
+
+      <div style="background: rgba(46, 204, 113, 0.08); border: 1px solid rgba(46, 204, 113, 0.2); border-radius: 12px; padding: 16px; margin-bottom: 24px; font-size: 13.5px; line-height: 1.6; color: var(--green);">
+        💡 <strong>เกณฑ์การผ่านการทดสอบ:</strong><br>
+        ต้องได้คะแนนรวมรวมทั้ง 3 ส่วนไม่ต่ำกว่า <strong>60% (120 คะแนนขึ้นไป)</strong> จากคะแนนเต็ม 200 คะแนน เพื่อผ่านเกณฑ์ ภาค ก
+      </div>
+
+      <div style="text-align: center;">
+        <button class="btn btn-primary" onclick="startRealExamA()" style="width: 100%; padding: 14px; font-family: 'Prompt', sans-serif; font-size: 16px; font-weight: 800; border-radius: 10px;">
+          🚀 เริ่มการสอบจริง (จับเวลา 300 นาที)
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+async function startRealExamA() {
+  const loader = document.getElementById('authLoader');
+  if (loader) loader.style.display = 'flex';
+
+  try {
+    const [res1, res2, res3] = await Promise.all([
+      apiFetch('/api/questions/random?categoryId=6a39436fc2e97ab3a084bc03&limit=100', { auth: false }),
+      apiFetch('/api/questions/random?categoryId=VWmY01Rh4BepkdUdABoR&limit=50', { auth: false }),
+      apiFetch('/api/questions/random?categoryId=ZDsmRyUzRsHwLHASHRYD&limit=50', { auth: false })
+    ]);
+
+    let q1 = [], q2 = [], q3 = [];
+    if (res1.ok) {
+      const d = await res1.json().catch(() => ({}));
+      q1 = Array.isArray(d) ? d : (d.questions || []);
+    }
+    if (res2.ok) {
+      const d = await res2.json().catch(() => ({}));
+      q2 = Array.isArray(d) ? d : (d.questions || []);
+    }
+    if (res3.ok) {
+      const d = await res3.json().catch(() => ({}));
+      q3 = Array.isArray(d) ? d : (d.questions || []);
+    }
+
+    const processedQ1 = q1.map(normalizeQuestionForClient).map(q => { q.sectionKey = 'analyticalAbility'; return q; });
+    const processedQ2 = q2.map(normalizeQuestionForClient).map(q => { q.sectionKey = 'englishSkill'; return q; });
+    const processedQ3 = q3.map(normalizeQuestionForClient).map(q => { q.sectionKey = 'goodCivilServant'; return q; });
+
+    const pool = [...processedQ1, ...processedQ2, ...processedQ3].filter(q =>
+      q.q &&
+      Array.isArray(q.opts) &&
+      q.opts.length >= 2 &&
+      Number.isInteger(q.ans) &&
+      q.ans >= 0
+    );
+
+    if (pool.length === 0) {
+      alert('ไม่สามารถโหลดข้อสอบได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง');
+      return;
+    }
+
+    currentQuestions = pool;
+    currentQ = 0;
+    userAnswers = new Array(pool.length).fill(-1);
+    quizStartTime = Date.now();
+    answered = false;
+    finishingQuiz = false;
+
+    currentSubject = {
+      id: 'real_exam_a',
+      categoryId: '6a39436fc2e97ab3a084bc03',
+      name: 'สอบจริง ภาค ก',
+      icon: '🏆',
+      isRealExamA: true,
+      partObj: { id: 'real_a', name: 'จำลองสอบจริง ภาค ก', short: 'ภาค ก', bg: 'rgba(240,192,64,.12)', tc: 'var(--gold)' },
+      examSet: {
+        id: 'real_exam_a',
+        title: 'สอบจริง ภาค ก',
+        mode: 'exam',
+        timeLimitMinutes: 300,
+        passingScorePercent: 60,
+        showExplanationAfterSubmit: true
+      }
+    };
+
+    clearInterval(timerInterval);
+    timerInterval = setInterval(updateTimer, 1000);
+    showPage('quiz');
+    renderQuestion();
+
+  } catch (error) {
+    console.error('Error starting real exam A:', error);
+    alert('เกิดข้อผิดพลาดในการโหลดข้อสอบ กรุณาลองใหม่อีกครั้ง');
+  } finally {
+    if (loader) loader.style.display = 'none';
   }
 }
 

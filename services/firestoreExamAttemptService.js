@@ -30,7 +30,7 @@ function validateAttempt(body, authenticated) {
     return 'guestName is required for guest attempts';
   }
   if (!body.categoryId) return 'A valid categoryId is required';
-  if (!['practice', 'exam'].includes(body.mode)) return 'mode must be practice or exam';
+  if (!['practice', 'exam', 'real_exam_a'].includes(body.mode)) return 'mode must be practice or exam or real_exam_a';
   if (!Number.isInteger(body.totalQuestions) || body.totalQuestions < 1) return 'totalQuestions must be at least 1';
   if (!Number.isInteger(body.correctCount) || body.correctCount < 0 || body.correctCount > body.totalQuestions) {
     return 'correctCount is invalid';
@@ -85,7 +85,7 @@ async function createExamAttempt(data, user) {
     categoryName: categoryDoc.data().name || '',
     examSetId: examSet?.id || null,
     examSetTitle: examSet?.title || null,
-    passed: examSet ? Number(((derivedCorrectCount / totalQuestions) * 100).toFixed(2)) >= examSet.passingScorePercent : null,
+    passed: data.mode === 'real_exam_a' ? (derivedCorrectCount >= 120) : (examSet ? Number(((derivedCorrectCount / totalQuestions) * 100).toFixed(2)) >= examSet.passingScorePercent : null),
     showExplanationAfterSubmit: examSet ? (examSet.showExplanationAfterSubmit ?? true) : null,
     mode: examSet?.mode || data.mode,
     totalQuestions,
@@ -98,6 +98,14 @@ async function createExamAttempt(data, user) {
     createdAt: new Date(),
     updatedAt: new Date()
   };
+
+  if (data.mode === 'real_exam_a') {
+    attemptPayload.totalScore = 200;
+    attemptPayload.passScore = 120;
+    attemptPayload.sectionScores = data.sectionScores || { analyticalAbility: 0, englishSkill: 0, goodCivilServant: 0 };
+    attemptPayload.totalTimeMinutes = 300;
+    attemptPayload.usedTimeSeconds = durationSeconds;
+  }
 
   // Add user information if user is logged in
   if (user) {

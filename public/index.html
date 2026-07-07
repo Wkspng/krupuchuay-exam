@@ -87,6 +87,7 @@
     <button class="nav-tab" onclick="showPage('quiz')">📝 ทำข้อสอบ</button>
     <button class="nav-tab" onclick="showPage('stats')">📊 ประวัติ / สถิติ</button>
     <button class="nav-tab" id="examSetsTab" onclick="showPage('exam-sets')" style="display:none">⏱️ ชุดข้อสอบ / โหมดสอบจริง</button>
+    <button class="nav-tab" id="realExamTab" onclick="showPage('real-exam')" style="display:none">🏆 โหมดสอบจริง ภาค ก</button>
     <button class="nav-tab" id="adminTab" onclick="showPage('admin')" style="display:none">⚙️ จัดการผู้ใช้<span class="tab-badge" id="pendingBadge" style="display:none">0</span></button>
     <button class="nav-tab" id="questionBankTab" onclick="showPage('question-bank')" style="display:none">📚 จัดการคลังข้อสอบ</button>
     <button class="nav-tab" id="examSetAdminTab" onclick="showPage('exam-set-admin')" style="display:none">🗂️ จัดการชุดข้อสอบ</button>
@@ -95,7 +96,27 @@
   <div class="page active" id="page-home">
     <p class="page-title">เลือกหมวดวิชาเพื่อเริ่มทำข้อสอบ</p>
     <p class="page-sub">หลักสูตร ว.14/2566 ออกข้อสอบโดยมหาวิทยาลัยธรรมศาสตร์ · รวบรวมย้อนหลัง 10 ปี (พ.ศ. 2557–2566)</p>
+    
+    <!-- Real Exam Mode Promo Banner -->
+    <div class="real-exam-promo-banner" onclick="showPage('real-exam')">
+      <div class="promo-badge">🏆 HOT โหมดแนะนำ</div>
+      <div class="promo-body">
+        <h3>โหมดสอบจริง ภาค ก</h3>
+        <p>จำลองการสอบครูผู้ช่วย ภาค ก เต็มรูปแบบ 200 ข้อ 300 นาที เกณฑ์ผ่าน 60% (120 คะแนน)</p>
+      </div>
+      <div class="promo-action">
+        <span>เริ่มจำลองสอบ</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+      </div>
+    </div>
+
     <div id="subjectContainer"></div>
+  </div>
+
+  <div class="page" id="page-real-exam">
+    <p class="page-title">🏆 โหมดสอบจริง ภาค ก</p>
+    <p class="page-sub">จำลองการทดสอบครูผู้ช่วย ภาค ก ตามเกณฑ์จริง คะแนนเต็ม 200 คะแนน เกณฑ์ผ่าน 60%</p>
+    <div id="realExamContainer"></div>
   </div>
 
   <div class="page" id="page-quiz">
@@ -335,6 +356,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-<script src="app.js?v=1.2.5"></script>
+<script src="app.js?v=1.2.6"></script>
 </body>
 </html>

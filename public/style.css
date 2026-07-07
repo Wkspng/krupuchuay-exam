@@ -262,3 +262,87 @@ body {
   .quiz-actions .btn { flex: 1; }
   .bar-label { width: 110px; font-size: 12px; }
 }
+
+/* Real Exam Promo Banner */
+.real-exam-promo-banner {
+  background: linear-gradient(135deg, rgba(240, 192, 64, 0.08) 0%, rgba(79, 195, 247, 0.08) 100%);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 22px 28px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+.real-exam-promo-banner:hover {
+  border-color: var(--gold);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(240, 192, 64, 0.15);
+  background: linear-gradient(135deg, rgba(240, 192, 64, 0.12) 0%, rgba(79, 195, 247, 0.12) 100%);
+}
+.real-exam-promo-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--gold), var(--accent));
+}
+.promo-badge {
+  background: linear-gradient(135deg, var(--gold), #d4a017);
+  color: var(--navy2);
+  font-family: 'Prompt', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  display: inline-block;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+.promo-body h3 {
+  font-family: 'Prompt', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.promo-body p {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.promo-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--gold);
+  font-family: 'Prompt', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+}
+.promo-action svg {
+  transition: transform 0.2s ease;
+}
+.real-exam-promo-banner:hover .promo-action svg {
+  transform: translateX(4px);
+}
+@media (max-width: 600px) {
+  .real-exam-promo-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .promo-action {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
