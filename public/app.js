@@ -65,7 +65,12 @@ const PRACTICE_EXAM_STRUCTURE = [
         title: 'Vocabulary',
         categoryNames: ['ภาษาอังกฤษพื้นฐาน'],
         topics: [
-          { id: 'vocab_meaning', title: 'Vocabulary & Meaning', keywords: ['vocab', 'word', 'meaning', 'synonym'] }
+          {
+            id: 'vocab_basic',
+            title: 'คำศัพท์พื้นฐาน',
+            keywords: ['vocabulary', 'คำศัพท์', 'meaning', 'synonym', 'antonym'],
+            categoryNames: ['ภาษาอังกฤษพื้นฐาน']
+          }
         ]
       },
       {
@@ -73,7 +78,12 @@ const PRACTICE_EXAM_STRUCTURE = [
         title: 'Grammar & Structure',
         categoryNames: ['ภาษาอังกฤษพื้นฐาน'],
         topics: [
-          { id: 'grammar_structure', title: 'Grammar & Structure', keywords: ['grammar', 'tense', 'preposition', 'conjunction'] }
+          {
+            id: 'grammar_structure',
+            title: 'Grammar & Structure',
+            keywords: ['grammar', 'tense', 'preposition', 'conjunction', 'structure', 'sentence'],
+            categoryNames: ['ภาษาอังกฤษพื้นฐาน']
+          }
         ]
       },
       {
@@ -81,7 +91,12 @@ const PRACTICE_EXAM_STRUCTURE = [
         title: 'Conversation / Communication',
         categoryNames: ['ภาษาอังกฤษพื้นฐาน'],
         topics: [
-          { id: 'conversation', title: 'Conversation & Expression', keywords: ['conversation', 'dialogue', 'expression', 'speaking'] }
+          {
+            id: 'conversation',
+            title: 'Conversation & Expression',
+            keywords: ['conversation', 'dialogue', 'expression', 'speaking', 'communication'],
+            categoryNames: ['ภาษาอังกฤษพื้นฐาน']
+          }
         ]
       },
       {
@@ -89,7 +104,12 @@ const PRACTICE_EXAM_STRUCTURE = [
         title: 'Reading Comprehension',
         categoryNames: ['ภาษาอังกฤษพื้นฐาน'],
         topics: [
-          { id: 'reading', title: 'Reading Comprehension', keywords: ['reading', 'passage', 'comprehension'] }
+          {
+            id: 'reading',
+            title: 'Reading Comprehension',
+            keywords: ['reading', 'passage', 'comprehension', 'text'],
+            categoryNames: ['ภาษาอังกฤษพื้นฐาน']
+          }
         ]
       },
       {
@@ -97,7 +117,12 @@ const PRACTICE_EXAM_STRUCTURE = [
         title: 'Cloze Test / Context',
         categoryNames: ['ภาษาอังกฤษพื้นฐาน'],
         topics: [
-          { id: 'cloze_test', title: 'Cloze Test & Fill-in', keywords: ['cloze', 'context'] }
+          {
+            id: 'cloze_test',
+            title: 'Cloze Test & Fill-in',
+            keywords: ['cloze', 'context', 'fill'],
+            categoryNames: ['ภาษาอังกฤษพื้นฐาน']
+          }
         ]
       }
     ]
@@ -275,7 +300,7 @@ const PRACTICE_EXAM_STRUCTURE = [
 // Source of truth is now Firestore and Exam Packs.
 
 // ===== STATE =====
-const APP_VERSION = '1.2.15';
+const APP_VERSION = '1.2.16';
 console.log(`App version: ${APP_VERSION}`);
 
 let authReadyResolve;
@@ -936,8 +961,21 @@ async function buildHome() {
     // Count total questions in this main subject by summing associated categories
     let totalQuestions = 0;
     mainSub.categoryNames.forEach(catName => {
-      const cat = categories.find(c => c.name === catName);
-      if (cat) totalQuestions += (cat.totalQuestions || 0);
+      const normName = String(catName).toLowerCase().trim();
+      const cat = categories.find(c => {
+        const cName = String(c.name || c.categoryName || '').toLowerCase().trim();
+        return cName === normName;
+      });
+      if (cat) {
+        totalQuestions += (cat.totalQuestions || 0);
+      } else {
+        console.warn('[PRACTICE_CATEGORY_NOT_FOUND]', {
+          targetId: mainSub.id,
+          title: mainSub.title,
+          categoryNames: mainSub.categoryNames,
+          availableCategories: categories.map(c => c.name)
+        });
+      }
     });
 
     html += `
@@ -1055,7 +1093,7 @@ async function startPracticeQuiz(type, targetId, limit) {
           const top = sub.topics.find(t => t.id === targetId);
           if (top) {
             targetObj = top;
-            categoryNames = sub.categoryNames;
+            categoryNames = top.categoryNames || sub.categoryNames;
             keywords = top.keywords || [];
             title = `ฝึกเรื่อง: ${top.title}`;
             break;
@@ -1072,11 +1110,21 @@ async function startPracticeQuiz(type, targetId, limit) {
 
     // Resolve category IDs
     const categoryIds = categoryNames.map(name => {
-      const cat = mongoQuizCategories.find(c => c.name === name);
+      const normName = String(name).toLowerCase().trim();
+      const cat = mongoQuizCategories.find(c => {
+        const cName = String(c.name || c.categoryName || '').toLowerCase().trim();
+        return cName === normName;
+      });
       return cat ? (cat.id || cat._id) : null;
     }).filter(Boolean);
 
     if (categoryIds.length === 0) {
+      console.warn('[PRACTICE_CATEGORY_NOT_FOUND]', {
+        targetId,
+        title,
+        categoryNames,
+        availableCategories: mongoQuizCategories.map(c => c.name)
+      });
       alert('ไม่พบหมวดวิชาที่เกี่ยวข้องในระบบ');
       return;
     }
