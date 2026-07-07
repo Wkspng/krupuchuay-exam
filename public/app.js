@@ -2,9 +2,9 @@
 
 // ===== DATA STRUCTURE =====
 const PARTS = [
-  {id:'p1',name:'ส่วนที่ 1 : ความรอบรู้',short:'ความรอบรู้',score:'75 คะแนน',icon:'📖',tc:'#4fc3f7',bg:'rgba(79,195,247,.12)'},
-  {id:'p2',name:'ส่วนที่ 2 : ความสามารถทั่วไป',short:'ความสามารถทั่วไป',score:'100 คะแนน',icon:'🧮',tc:'#f0c040',bg:'rgba(240,192,64,.12)'},
-  {id:'p3',name:'ส่วนที่ 3 : วิชาชีพครูและคุณธรรม',short:'วิชาชีพครู',score:'25 คะแนน',icon:'🎓',tc:'#9b59b6',bg:'rgba(155,89,182,.12)'},
+  {id:'p1',name:'ฝึกกลุ่มที่ 1 : ความรอบรู้และกฎหมาย',short:'ความรอบรู้และกฎหมาย',score:'(ฝึกแยกตามหมวด)',icon:'📖',tc:'#4fc3f7',bg:'rgba(79,195,247,.12)'},
+  {id:'p2',name:'ฝึกกลุ่มที่ 2 : ความสามารถทั่วไปและภาษา',short:'ความสามารถทั่วไปและภาษา',score:'(ฝึกแยกตามหมวด)',icon:'🧮',tc:'#f0c040',bg:'rgba(240,192,64,.12)'},
+  {id:'p3',name:'ฝึกกลุ่มที่ 3 : วิชาชีพครูและจริยธรรม',short:'วิชาชีพครูและจริยธรรม',score:'(ฝึกแยกตามหมวด)',icon:'🎓',tc:'#9b59b6',bg:'rgba(155,89,182,.12)'},
 ];
 // Hardcoded QB arrays and SUBJECTS were removed in Phase 5G-2.
 // Source of truth is now Firestore and Exam Packs.
@@ -622,7 +622,9 @@ async function buildHome() {
 
       if (partCats.length === 0) return;
 
-      html += `<div class="part-label">${pt.icon} ${pt.name} <span style="font-size:11px;color:var(--accent);font-weight:400;text-transform:none;letter-spacing:0">${pt.score}</span></div><div class="subject-grid">`;
+      html += `<div class="part-label">${pt.icon} ${pt.name} <span style="font-size:11px;color:var(--accent);font-weight:400;text-transform:none;letter-spacing:0">${pt.score}</span></div>`;
+      html += `<div style="font-size:12.5px;color:var(--muted);margin-top:-6px;margin-bottom:12px;padding-left:4px;">⚠️ หมวดนี้เป็นคลังข้อสอบสำหรับฝึกแยกเรื่อง ไม่ใช่โครงสร้างสอบจริงเต็มรูปแบบ</div>`;
+      html += `<div class="subject-grid">`;
       
       partCats.forEach(cat => {
         const ui = CATEGORY_UI_MAP[cat.name] || { part: 'p1', icon: '📚', legacyKeys: [] };
@@ -632,9 +634,9 @@ async function buildHome() {
         const subHist = hist.filter(h => h.subjectId === cat.id || h.subjectId === cat._id || ui.legacyKeys.includes(h.subjectId));
         const best = subHist.length ? Math.max(...subHist.map(h => h.pct)) : null;
         const scoreHtml = best !== null ? `<span class="subject-score" style="background:${best>=70?'rgba(46,204,113,.15)':'rgba(231,76,60,.15)'};color:${best>=70?'#2ecc71':'#e74c3c'}">สูงสุด ${best}%</span>` : '';
-        const partBadge = `<span class="part-badge" style="background:${pt.bg};color:${pt.tc}">ส่วน${pt.id.replace('p','')}</span>`;
+        const partBadge = `<span class="part-badge" style="background:${pt.bg};color:${pt.tc}">กลุ่มฝึก ${pt.id.replace('p','')}</span>`;
         
-        html += `<div class="subject-card" onclick="startQuiz('${cat.id || cat._id}')">${partBadge}${scoreHtml}<div class="subject-icon">${ui.icon}</div><div class="subject-name">${cat.name}</div><div class="subject-count">${qlen} ข้อ · ย้อนหลัง 10 ปี</div></div>`;
+        html += `<div class="subject-card" onclick="startQuiz('${cat.id || cat._id}')">${partBadge}${scoreHtml}<div class="subject-icon">${ui.icon}</div><div class="subject-name">${cat.name}</div><div class="subject-count">${qlen} ข้อ · คลังฝึก · ย้อนหลัง 10 ปี</div></div>`;
       });
       html += '</div>';
     });
@@ -2251,18 +2253,18 @@ async function renderRealExamHome() {
       </div>
 
       <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 18px; margin-bottom: 22px;">
-        <h4 style="color: var(--text); font-family: 'Prompt', sans-serif; font-size: 15px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px;">โครงสร้างข้อสอบ (รวม 200 ข้อ / 300 นาที / 200 คะแนน)</h4>
+        <h4 style="color: var(--text); font-family: 'Prompt', sans-serif; font-size: 15px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px;">โครงสร้างข้อสอบ (รวม 200 ข้อ / 300 นาที / 200 คะแนน / ผ่านเกณฑ์ 120 คะแนน)</h4>
         
         <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13.5px;">
-          <span>1. ความสามารถในการคิดวิเคราะห์</span>
+          <span>วิชาที่ 1: ความสามารถในการคิดวิเคราะห์ (100 คะแนน)</span>
           <span style="color: var(--accent); font-weight: 600;">100 ข้อ / 150 นาที</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13.5px;">
-          <span>2. ทักษะภาษาอังกฤษ</span>
+          <span>วิชาที่ 2: ทักษะภาษาอังกฤษ (50 คะแนน)</span>
           <span style="color: var(--accent); font-weight: 600;">50 ข้อ / 90 นาที</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13.5px;">
-          <span>3. ความรู้และลักษณะการเป็นข้าราชการที่ดี</span>
+          <span>วิชาที่ 3: ความรู้และลักษณะการเป็นข้าราชการที่ดี (50 คะแนน)</span>
           <span style="color: var(--accent); font-weight: 600;">50 ข้อ / 60 นาที</span>
         </div>
       </div>
