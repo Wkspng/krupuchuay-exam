@@ -6,6 +6,170 @@ const PARTS = [
   {id:'p2',name:'ฝึกกลุ่มที่ 2 : ความสามารถทั่วไปและภาษา',short:'ความสามารถทั่วไปและภาษา',score:'(ฝึกแยกตามหมวด)',icon:'🧮',tc:'#f0c040',bg:'rgba(240,192,64,.12)'},
   {id:'p3',name:'ฝึกกลุ่มที่ 3 : วิชาชีพครูและจริยธรรม',short:'วิชาชีพครูและจริยธรรม',score:'(ฝึกแยกตามหมวด)',icon:'🎓',tc:'#9b59b6',bg:'rgba(155,89,182,.12)'},
 ];
+
+const PRACTICE_EXAM_STRUCTURE = [
+  {
+    id: 'analytical_ability',
+    title: 'ความสามารถในการคิดวิเคราะห์',
+    score: 100,
+    icon: '🧠',
+    description: 'เน้นการคิดวิเคราะห์เชิงภาษา เชิงนามธรรม และเชิงปริมาณ',
+    categoryNames: ['ความสามารถทั่วไป', 'ภาษาไทย (อ่านจับใจความ / ไวยากรณ์)', 'ภาษาไทย'],
+    subSubjects: [
+      {
+        id: 'language_analysis',
+        title: 'คิดวิเคราะห์เชิงภาษา',
+        categoryNames: ['ภาษาไทย (อ่านจับใจความ / ไวยากรณ์)', 'ภาษาไทย'],
+        topics: [
+          { id: 'reading_main_idea', title: 'อ่านจับใจความ', keywords: ['จับใจความ', 'อ่านจับใจความ'] },
+          { id: 'summary', title: 'สรุปความ', keywords: ['สรุปความ'] },
+          { id: 'interpretation', title: 'ตีความ', keywords: ['ตีความ'] },
+          { id: 'thai_communication', title: 'การใช้ภาษาไทยเพื่อการสื่อสาร', keywords: ['การใช้ภาษา', 'สื่อสาร', 'ภาษาไทย'] }
+        ]
+      },
+      {
+        id: 'abstract_reasoning',
+        title: 'คิดวิเคราะห์เชิงนามธรรม',
+        categoryNames: ['ความสามารถทั่วไป'],
+        topics: [
+          { id: 'word_relation', title: 'ความสัมพันธ์คำ/ข้อความ', keywords: ['อุปมาอุปไมย', 'ความสัมพันธ์'] },
+          { id: 'symbol_relation', title: 'รูปภาพ/สัญลักษณ์', keywords: ['มิติสัมพันธ์', 'สัญลักษณ์', 'รูปภาพ'] },
+          { id: 'logic_reasoning', title: 'เหตุผลเชิงตรรกะ', keywords: ['ตรรกศาสตร์', 'ตรรกะ', 'เหตุผล'] },
+          { id: 'model_reasoning', title: 'แบบจำลอง/สถานการณ์', keywords: ['เงื่อนไขสัญลักษณ์', 'เงื่อนไขภาษา'] }
+        ]
+      },
+      {
+        id: 'quantitative_reasoning',
+        title: 'คิดวิเคราะห์เชิงปริมาณ',
+        categoryNames: ['ความสามารถทั่วไป'],
+        topics: [
+          { id: 'basic_math', title: 'คณิตศาสตร์พื้นฐาน', keywords: ['คณิตศาสตร์', 'สมการ', 'ร้อยละ', 'ดอกเบี้ย', 'ค.ร.น.', 'ห.ร.ม.'] },
+          { id: 'series', title: 'อนุกรม', keywords: ['อนุกรม'] },
+          { id: 'table_graph_stat', title: 'ตาราง/กราฟ/สถิติ', keywords: ['ตาราง', 'กราฟ', 'สถิติ'] },
+          { id: 'quant_compare', title: 'เปรียบเทียบเชิงปริมาณ', keywords: ['เปรียบเทียบ'] },
+          { id: 'data_sufficiency', title: 'ความเพียงพอของข้อมูล', keywords: ['ความเพียงพอ'] }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'english_skill',
+    title: 'ทักษะภาษาอังกฤษ',
+    score: 50,
+    icon: '🔡',
+    description: 'ทักษะภาษาอังกฤษพื้นฐาน การสื่อสาร ไวยากรณ์ และการอ่าน',
+    categoryNames: ['ภาษาอังกฤษพื้นฐาน'],
+    subSubjects: [
+      {
+        id: 'english_vocab',
+        title: 'Vocabulary',
+        categoryNames: ['ภาษาอังกฤษพื้นฐาน'],
+        topics: [
+          { id: 'vocab_meaning', title: 'Vocabulary & Meaning', keywords: ['vocab', 'word', 'meaning', 'synonym'] }
+        ]
+      },
+      {
+        id: 'english_grammar',
+        title: 'Grammar & Structure',
+        categoryNames: ['ภาษาอังกฤษพื้นฐาน'],
+        topics: [
+          { id: 'grammar_structure', title: 'Grammar & Structure', keywords: ['grammar', 'tense', 'preposition', 'conjunction'] }
+        ]
+      },
+      {
+        id: 'english_conversation',
+        title: 'Conversation / Communication',
+        categoryNames: ['ภาษาอังกฤษพื้นฐาน'],
+        topics: [
+          { id: 'conversation', title: 'Conversation & Expression', keywords: ['conversation', 'dialogue', 'expression', 'speaking'] }
+        ]
+      },
+      {
+        id: 'english_reading',
+        title: 'Reading Comprehension',
+        categoryNames: ['ภาษาอังกฤษพื้นฐาน'],
+        topics: [
+          { id: 'reading', title: 'Reading Comprehension', keywords: ['reading', 'passage', 'comprehension'] }
+        ]
+      },
+      {
+        id: 'english_cloze',
+        title: 'Cloze Test / Context',
+        categoryNames: ['ภาษาอังกฤษพื้นฐาน'],
+        topics: [
+          { id: 'cloze_test', title: 'Cloze Test & Fill-in', keywords: ['cloze', 'context'] }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'good_civil_servant',
+    title: 'ความรู้และลักษณะการเป็นข้าราชการที่ดี',
+    score: 50,
+    icon: '🎖️',
+    description: 'พระราชบัญญัติ ระเบียบวินัย คุณธรรมจริยธรรม และการเป็นข้าราชการที่ดี',
+    categoryNames: ['ความรู้และลักษณะการเป็นข้าราชการที่ดี', 'รัฐธรรมนูญและกฎหมายการศึกษา', 'สังคม เศรษฐกิจ การเมือง บ้านเมือง', 'นโยบายรัฐ / ปฏิรูปการศึกษา', 'วิชาชีพครู'],
+    subSubjects: [
+      {
+        id: 'admin_rules',
+        title: 'ระเบียบบริหารราชการแผ่นดิน',
+        categoryNames: ['ความรู้และลักษณะการเป็นข้าราชการที่ดี', 'รัฐธรรมนูญและกฎหมายการศึกษา'],
+        topics: [
+          { id: 'admin_law', title: 'ระเบียบบริหารราชการแผ่นดิน', keywords: ['ระเบียบบริหารราชการแผ่นดิน', 'บริหารแผ่นดิน'] }
+        ]
+      },
+      {
+        id: 'good_governance',
+        title: 'หลักธรรมาภิบาล',
+        categoryNames: ['ความรู้และลักษณะการเป็นข้าราชการที่ดี'],
+        topics: [
+          { id: 'good_gov', title: 'หลักธรรมาภิบาล / บริหารกิจการบ้านเมืองที่ดี', keywords: ['ธรรมาภิบาล', 'กิจการบ้านเมืองที่ดี'] }
+        ]
+      },
+      {
+        id: 'ethics_standard',
+        title: 'จริยธรรมและมาตรฐานทางจริยธรรม',
+        categoryNames: ['ความรู้และลักษณะการเป็นข้าราชการที่ดี', 'วิชาชีพครู'],
+        topics: [
+          { id: 'ethics', title: 'มาตรฐานทางจริยธรรม / ประมวลจริยธรรม', keywords: ['จริยธรรม', 'ประมวลจริยธรรม', 'จรรยาบรรณ'] }
+        ]
+      },
+      {
+        id: 'civil_discipline',
+        title: 'วินัยข้าราชการ',
+        categoryNames: ['ความรู้และลักษณะการเป็นข้าราชการที่ดี', 'วิชาชีพครู'],
+        topics: [
+          { id: 'discipline', title: 'วินัยและการรักษาวินัย', keywords: ['วินัย', 'รักษาวินัย'] }
+        ]
+      },
+      {
+        id: 'good_servant',
+        title: 'การเป็นข้าราชการที่ดี',
+        categoryNames: ['ความรู้และลักษณะการเป็นข้าราชการที่ดี'],
+        topics: [
+          { id: 'good_civil', title: 'หน้าที่และการเป็นข้าราชการที่ดี', keywords: ['ข้าราชการที่ดี', 'ลักษณะข้าราชการ'] }
+        ]
+      },
+      {
+        id: 'education_law',
+        title: 'กฎหมายและระเบียบที่เกี่ยวกับการศึกษา',
+        categoryNames: ['รัฐธรรมนูญและกฎหมายการศึกษา', 'วิชาชีพครู'],
+        topics: [
+          { id: 'edu_law_detail', title: 'กฎหมายการศึกษา / พ.ร.บ.การศึกษา', keywords: ['พ.ร.บ.', 'พระราชบัญญัติ', 'กฎหมายการศึกษา', 'รัฐธรรมนูญ'] }
+        ]
+      },
+      {
+        id: 'reform_policy',
+        title: 'นโยบายรัฐและการปฏิรูปการศึกษา',
+        categoryNames: ['นโยบายรัฐ / ปฏิรูปการศึกษา', 'สังคม เศรษฐกิจ การเมือง บ้านเมือง'],
+        topics: [
+          { id: 'policy_detail', title: 'นโยบายรัฐ / ปฏิรูปการศึกษา / ยุทธศาสตร์ชาติ', keywords: ['นโยบาย', 'ปฏิรูปการศึกษา', 'ยุทธศาสตร์ชาติ', 'เศรษฐกิจพอเพียง'] }
+        ]
+      }
+    ]
+  }
+];
+
 // Hardcoded QB arrays and SUBJECTS were removed in Phase 5G-2.
 // Source of truth is now Firestore and Exam Packs.
 
@@ -589,11 +753,8 @@ async function buildHome() {
     if (res.ok) {
       categories = await res.json();
       mongoQuizCategories = categories;
-      // Filter to only active categories with questions
       categories = categories.filter(c => c.isActive === true && (c.totalQuestions > 0));
-      if (categories.length === 0) {
-        useFallback = true;
-      }
+      if (categories.length === 0) useFallback = true;
     } else {
       useFallback = true;
     }
@@ -611,38 +772,257 @@ async function buildHome() {
     `;
     document.getElementById('subjectContainer').innerHTML = html;
     return;
-  } else {
-    // Render from Firestore categories grouped by part
-    PARTS.forEach(pt => {
-      // Find categories that map to this part
-      const partCats = categories.filter(cat => {
-        const ui = CATEGORY_UI_MAP[cat.name] || { part: 'p1' };
-        return ui.part === pt.id;
-      });
-
-      if (partCats.length === 0) return;
-
-      html += `<div class="part-label">${pt.icon} ${pt.name} <span style="font-size:11px;color:var(--accent);font-weight:400;text-transform:none;letter-spacing:0">${pt.score}</span></div>`;
-      html += `<div style="font-size:12.5px;color:var(--muted);margin-top:-6px;margin-bottom:12px;padding-left:4px;">⚠️ หมวดนี้เป็นคลังข้อสอบสำหรับฝึกแยกเรื่อง ไม่ใช่โครงสร้างสอบจริงเต็มรูปแบบ</div>`;
-      html += `<div class="subject-grid">`;
-      
-      partCats.forEach(cat => {
-        const ui = CATEGORY_UI_MAP[cat.name] || { part: 'p1', icon: '📚', legacyKeys: [] };
-        const qlen = cat.totalQuestions || 0;
-        
-        // Calculate best score from history, supporting legacy subjectIds
-        const subHist = hist.filter(h => h.subjectId === cat.id || h.subjectId === cat._id || ui.legacyKeys.includes(h.subjectId));
-        const best = subHist.length ? Math.max(...subHist.map(h => h.pct)) : null;
-        const scoreHtml = best !== null ? `<span class="subject-score" style="background:${best>=70?'rgba(46,204,113,.15)':'rgba(231,76,60,.15)'};color:${best>=70?'#2ecc71':'#e74c3c'}">สูงสุด ${best}%</span>` : '';
-        const partBadge = `<span class="part-badge" style="background:${pt.bg};color:${pt.tc}">กลุ่มฝึก ${pt.id.replace('p','')}</span>`;
-        
-        html += `<div class="subject-card" onclick="startQuiz('${cat.id || cat._id}')">${partBadge}${scoreHtml}<div class="subject-icon">${ui.icon}</div><div class="subject-name">${cat.name}</div><div class="subject-count">${qlen} ข้อ · คลังฝึก · ย้อนหลัง 10 ปี</div></div>`;
-      });
-      html += '</div>';
-    });
   }
 
+  html += `
+    <div style="margin-top: 16px;">
+      <p style="font-size: 13.5px; color: var(--muted); margin-bottom: 20px;">
+        💡 คลิกที่หัวข้อหลักด้านล่างเพื่อเลือกดูหัวข้อย่อยและเรื่องย่อยที่ต้องการฝึกฝนแยกเป็นรายเรื่อง
+      </p>
+  `;
+
+  PRACTICE_EXAM_STRUCTURE.forEach(mainSub => {
+    // Count total questions in this main subject by summing associated categories
+    let totalQuestions = 0;
+    mainSub.categoryNames.forEach(catName => {
+      const cat = categories.find(c => c.name === catName);
+      if (cat) totalQuestions += (cat.totalQuestions || 0);
+    });
+
+    html += `
+      <div class="bank-section" style="margin-bottom: 20px; border-radius: 16px; padding: 22px; transition: all 0.2s;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 26px;">${mainSub.icon || '🧠'}</span>
+            <div>
+              <h3 style="font-family: 'Prompt', sans-serif; font-size: 18px; color: var(--gold); margin: 0;">
+                ${mainSub.title} <span style="font-size: 13px; color: var(--accent); font-weight: normal;">(${mainSub.score} คะแนนเต็ม)</span>
+              </h3>
+              <p style="margin: 3px 0 0; font-size: 12.5px; color: var(--muted);">${mainSub.description}</p>
+            </div>
+          </div>
+          <div style="font-size: 12.5px; color: var(--muted); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 8px;">
+            คลังข้อสอบทั้งหมด: <strong>${totalQuestions} ข้อ</strong>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;">
+          <button class="btn btn-primary btn-sm" onclick="startPracticeQuiz('mainSubject', '${mainSub.id}', 50)" style="display: flex; align-items: center; gap: 6px; font-weight: bold; background: linear-gradient(135deg, var(--gold), #d4a017); color: var(--navy2);">
+            ⚡ ฝึกวิชาหลักนี้ (สุ่ม 50 ข้อ)
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="toggleSubSubjects('${mainSub.id}')" id="toggle-btn-${mainSub.id}" style="display: flex; align-items: center; gap: 6px; border-color: rgba(255,255,255,0.1);">
+            📁 แสดงหัวข้อย่อยและเรื่องย่อย
+          </button>
+        </div>
+
+        <!-- Sub Subjects Container -->
+        <div id="sub-container-${mainSub.id}" style="display: none; background: rgba(0, 0, 0, 0.15); border-radius: 12px; padding: 14px 18px; border: 1px solid rgba(255,255,255,0.04); margin-top: 12px; animation: fadeUp .2s ease;">
+          <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 12px; font-style: italic;">
+            ⚠️ หมวดวิชาย่อยและเรื่องย่อยด้านล่างนี้เป็นแบบฝึกแบบระบุเรื่องเพื่อทบทวนความรู้ ไม่ใช่โครงสร้างข้อสอบจริง
+          </div>
+    `;
+
+    mainSub.subSubjects.forEach(sub => {
+      html += `
+        <div style="margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 14px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+            <h4 style="font-family: 'Prompt', sans-serif; font-size: 14.5px; color: var(--text); margin: 0; font-weight: bold;">
+              📁 ${sub.title}
+            </h4>
+            <button class="btn btn-secondary btn-sm" onclick="startPracticeQuiz('subSubject', '${sub.id}', 30)" style="font-size: 11px; padding: 4px 10px; border-radius: 6px;">
+              ⚡ ฝึกวิชาย่อยนี้ (สุ่ม 30 ข้อ)
+            </button>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; padding-left: 14px;">
+      `;
+
+      sub.topics.forEach(top => {
+        html += `
+          <div onclick="startPracticeQuiz('topic', '${top.id}', 20)" class="option-btn" style="padding: 8px 12px; font-size: 13px; border-radius: 8px; margin: 0; background: var(--navy); border-color: rgba(255,255,255,0.05); cursor: pointer; transition: all 0.15s ease; display: flex; align-items: center; justify-content: space-between;">
+            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 6px;">📝 ${top.title}</span>
+            <span style="font-size: 10px; color: var(--accent); background: rgba(79,195,247,0.1); padding: 1px 6px; border-radius: 4px; flex-shrink: 0;">20 ข้อ</span>
+          </div>
+        `;
+      });
+
+      html += `
+          </div>
+        </div>
+      `;
+    });
+
+    html += `
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
   document.getElementById('subjectContainer').innerHTML = html;
+}
+
+function toggleSubSubjects(mainSubId) {
+  const container = document.getElementById(`sub-container-${mainSubId}`);
+  const btn = document.getElementById(`toggle-btn-${mainSubId}`);
+  if (container.style.display === 'none') {
+    container.style.display = 'block';
+    btn.innerHTML = '📂 ซ่อนหัวข้อย่อยและเรื่องย่อย';
+  } else {
+    container.style.display = 'none';
+    btn.innerHTML = '📁 แสดงหัวข้อย่อยและเรื่องย่อย';
+  }
+}
+
+async function startPracticeQuiz(type, targetId, limit) {
+  const loader = document.getElementById('authLoader');
+  if (loader) loader.style.display = 'flex';
+
+  try {
+    let targetObj = null;
+    let categoryNames = [];
+    let keywords = [];
+    let title = '';
+
+    if (type === 'mainSubject') {
+      targetObj = PRACTICE_EXAM_STRUCTURE.find(m => m.id === targetId);
+      categoryNames = targetObj.categoryNames;
+      title = `ฝึกวิชาหลัก: ${targetObj.title}`;
+    } else if (type === 'subSubject') {
+      for (const m of PRACTICE_EXAM_STRUCTURE) {
+        const sub = m.subSubjects.find(s => s.id === targetId);
+        if (sub) {
+          targetObj = sub;
+          categoryNames = sub.categoryNames;
+          title = `ฝึกวิชาหลัก: ${m.title} ➔ ${sub.title}`;
+          break;
+        }
+      }
+    } else if (type === 'topic') {
+      for (const m of PRACTICE_EXAM_STRUCTURE) {
+        for (const sub of m.subSubjects) {
+          const top = sub.topics.find(t => t.id === targetId);
+          if (top) {
+            targetObj = top;
+            categoryNames = sub.categoryNames;
+            keywords = top.keywords || [];
+            title = `ฝึกเรื่อง: ${top.title}`;
+            break;
+          }
+        }
+        if (targetObj) break;
+      }
+    }
+
+    if (!targetObj) {
+      alert('ไม่พบข้อมูลโครงสร้างการฝึก');
+      return;
+    }
+
+    // Resolve category IDs
+    const categoryIds = categoryNames.map(name => {
+      const cat = mongoQuizCategories.find(c => c.name === name);
+      return cat ? (cat.id || cat._id) : null;
+    }).filter(Boolean);
+
+    if (categoryIds.length === 0) {
+      alert('ไม่พบหมวดวิชาที่เกี่ยวข้องในระบบ');
+      return;
+    }
+
+    // Fetch questions from all categories in parallel
+    const fetchPromises = categoryIds.map(catId => 
+      apiFetch(`/api/questions/random?categoryId=${catId}&limit=100`, { auth: false })
+        .then(res => res.ok ? res.json() : [])
+        .then(data => Array.isArray(data) ? data : (data.questions || []))
+        .catch(() => [])
+    );
+
+    const results = await Promise.all(fetchPromises);
+    let allQuestions = [];
+    results.forEach(qList => {
+      allQuestions = allQuestions.concat(qList);
+    });
+
+    // Normalize
+    allQuestions = allQuestions.map(normalizeQuestionForClient);
+
+    let filtered = [];
+    if (type === 'topic') {
+      // Filter by keywords/topic name
+      filtered = allQuestions.filter(q => {
+        const topicLower = (q.topic || '').toLowerCase();
+        const textLower = (q.q || '').toLowerCase();
+        // Match topic title directly
+        if (topicLower.includes(targetObj.title.toLowerCase())) return true;
+        // Match keywords
+        return keywords.some(kw => {
+          const kwl = kw.toLowerCase();
+          return topicLower.includes(kwl) || textLower.includes(kwl);
+        });
+      });
+
+      // Fallback if none matched
+      if (filtered.length === 0) {
+        console.log(`No match for topic keywords: ${keywords.join(', ')}. Falling back to category pool.`);
+        filtered = allQuestions;
+      }
+    } else {
+      filtered = allQuestions;
+    }
+
+    // Filter valid ones
+    const pool = filtered.filter(q =>
+      q.q &&
+      Array.isArray(q.opts) &&
+      q.opts.length >= 2 &&
+      Number.isInteger(q.ans) &&
+      q.ans >= 0
+    );
+
+    if (pool.length === 0) {
+      alert('ไม่สามารถดึงข้อสอบได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง');
+      return;
+    }
+
+    // Shuffle and limit
+    const shuffled = pool.sort(() => 0.5 - Math.random());
+    const selected = shuffled.slice(0, limit);
+
+    currentQuestions = selected;
+    currentQ = 0;
+    userAnswers = new Array(selected.length).fill(-1);
+    quizStartTime = Date.now();
+    answered = false;
+    finishingQuiz = false;
+
+    // Build simulated currentSubject
+    currentSubject = {
+      id: targetId,
+      categoryId: categoryIds[0], // pass first categoryId for API attempt save validator
+      name: title,
+      icon: type === 'mainSubject' ? (targetObj.icon || '🧠') : '🧠',
+      partObj: { id: targetId, name: title, short: 'ฝึกฝน', bg: 'rgba(79,195,247,.12)', tc: 'var(--accent)' },
+      examSet: {
+        id: targetId,
+        title: title,
+        mode: 'practice',
+        showExplanationAfterSubmit: true
+      }
+    };
+
+    clearInterval(timerInterval);
+    timerInterval = setInterval(updateTimer, 1000);
+    showPage('quiz');
+    renderQuestion();
+
+  } catch (error) {
+    console.error('Error starting practice quiz:', error);
+    alert('เกิดข้อผิดพลาดในการโหลดข้อสอบ');
+  } finally {
+    if (loader) loader.style.display = 'none';
+  }
+}
 }
 
 // ===== QUIZ =====
