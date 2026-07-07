@@ -81,21 +81,15 @@ async function optionalAuthenticateToken(req, res, next) {
 
   const [scheme, token] = authorization.split(' ');
   if (scheme !== 'Bearer' || !token) {
-    return res.status(401).json({ error: 'Invalid authentication token' });
+    return next();
   }
 
   try {
     const user = await verifyFirebaseToken(token);
-    if (user.approvalStatus === 'pending') {
-      return res.status(403).json({ error: 'บัญชีของคุณยังไม่ได้รับการอนุมัติจากแอดมิน กรุณารอการอนุมัติ' });
-    }
-    if (user.approvalStatus === 'rejected') {
-      return res.status(403).json({ error: 'บัญชีของคุณไม่ได้รับการอนุมัติ กรุณาติดต่อแอดมิน' });
-    }
     req.user = user;
     return next();
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid or expired authentication token' });
+    return next();
   }
 }
 

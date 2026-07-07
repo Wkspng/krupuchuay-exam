@@ -531,8 +531,36 @@ async function doLogin() {
       return;
     }
     
-    const { token, user } = await res.json();
-    localStorage.setItem('authToken', token);
+    const { user } = await res.json();
+    
+    console.log('[LOGIN_DEBUG]', {
+      email: user.email,
+      authUid: user.uid,
+      profileExists: true,
+      role: user.role,
+      approvalStatus: user.approvalStatus
+    });
+
+    if (user.approvalStatus === 'pending') {
+      errMsg.textContent = '❌ บัญชียังไม่ได้รับการอนุมัติ';
+      errMsg.style.display = 'block';
+      await auth.signOut();
+      return;
+    }
+    if (user.approvalStatus === 'rejected') {
+      errMsg.textContent = '❌ บัญชีนี้ไม่มีสิทธิ์เข้าใช้งาน';
+      errMsg.style.display = 'block';
+      await auth.signOut();
+      return;
+    }
+    if (!['admin', 'user'].includes(user.role)) {
+      errMsg.textContent = '❌ บัญชีนี้ไม่มีสิทธิ์เข้าใช้งาน';
+      errMsg.style.display = 'block';
+      await auth.signOut();
+      return;
+    }
+
+    localStorage.setItem('authToken', idToken);
     localStorage.setItem('authUser', JSON.stringify(user));
     currentUser = user;
     
@@ -553,14 +581,20 @@ async function doLogin() {
     await buildHome();
     showPage('home');
   } catch (e) {
-    console.error(e);
+    console.error('[LOGIN_ERROR]', e);
+    let msg = '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือระบบขัดข้อง';
     if (e.code === 'auth/invalid-email') {
-      errMsg.textContent = '❌ กรุณากรอกอีเมลให้ถูกต้อง เช่น example@gmail.com';
-    } else if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
-      errMsg.textContent = '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง';
-    } else {
-      errMsg.textContent = '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือระบบขัดข้อง';
+      msg = '❌ กรุณากรอกอีเมลให้ถูกต้อง เช่น example@gmail.com';
+    } else if (e.code === 'auth/user-not-found') {
+      msg = '❌ ไม่พบบัญชีนี้';
+    } else if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+      msg = '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+    } else if (e.code === 'auth/too-many-requests') {
+      msg = '❌ ลองใหม่ภายหลัง';
+    } else if (e.message) {
+      msg = `❌ ${e.message}`;
     }
+    errMsg.textContent = msg;
     errMsg.style.display = 'block';
   }
 }
