@@ -275,7 +275,7 @@ const PRACTICE_EXAM_STRUCTURE = [
 // Source of truth is now Firestore and Exam Packs.
 
 // ===== STATE =====
-const APP_VERSION = '1.2.14';
+const APP_VERSION = '1.2.15';
 console.log(`App version: ${APP_VERSION}`);
 
 let authReadyResolve;
@@ -1100,6 +1100,7 @@ async function startPracticeQuiz(type, targetId, limit) {
 
     let filtered = [];
     let matchedCount = 0;
+    let topUpQuestions = [];
 
     const validAllQuestions = allQuestions.filter(q =>
       q.q &&
@@ -1111,7 +1112,7 @@ async function startPracticeQuiz(type, targetId, limit) {
     const rawPoolCount = validAllQuestions.length;
 
     if (type === 'topic') {
-      const topicMatches = validAllQuestions.filter(q => {
+      const matchedQuestions = validAllQuestions.filter(q => {
         const fields = [
           q.topic || '',
           q.categoryName || '',
@@ -1132,10 +1133,19 @@ async function startPracticeQuiz(type, targetId, limit) {
         });
       });
 
-      matchedCount = topicMatches.length;
+      matchedCount = matchedQuestions.length;
 
       if (matchedCount > 0) {
-        filtered = topicMatches;
+        if (matchedCount < limit && rawPoolCount > matchedCount) {
+          const matchedIds = new Set(matchedQuestions.map(q => q.questionId || q.id));
+          topUpQuestions = validAllQuestions
+            .filter(q => !matchedIds.has(q.questionId || q.id))
+            .sort(() => 0.5 - Math.random())
+            .slice(0, limit - matchedCount);
+          filtered = [...matchedQuestions, ...topUpQuestions];
+        } else {
+          filtered = matchedQuestions;
+        }
       } else {
         console.warn('[PRACTICE_TOPIC_FALLBACK]', {
           topicId: targetId,
@@ -1167,6 +1177,7 @@ async function startPracticeQuiz(type, targetId, limit) {
       title,
       rawPoolCount,
       matchedCount,
+      topUpCount: topUpQuestions.length,
       selectedCount
     });
 
