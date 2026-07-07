@@ -186,6 +186,7 @@ async function waitForAuthReady() {
   await authReadyPromise;
 }
 
+const ENABLE_APP_CHECK = false;
 let currentUser = null, currentSubject = null, currentQuestions = [], currentQ = 0, userAnswers = [], quizStartTime = null, timerInterval = null, answered = false, mongoQuizCategories = [], finishingQuiz = false;
 
 async function jwtHeaders(options = {}) {
@@ -196,6 +197,22 @@ async function jwtHeaders(options = {}) {
   }
   const token = await firebaseUser.getIdToken(!!options.forceRefresh);
   return { Authorization: `Bearer ${token}` };
+}
+
+async function getAppCheckHeaders() {
+  if (!ENABLE_APP_CHECK) return {};
+
+  try {
+    const appCheckInstance = window.firebase && firebase.appCheck ? firebase.appCheck() : null;
+    if (appCheckInstance) {
+      const tokenResult = await appCheckInstance.getToken(false);
+      return tokenResult?.token ? { 'X-Firebase-AppCheck': tokenResult.token } : {};
+    }
+    return {};
+  } catch (err) {
+    console.warn('[APP_CHECK_DISABLED_OR_FAILED]', err?.code || err?.message || err);
+    return {};
+  }
 }
 
 async function apiFetch(url, options = {}, retry = true) {
@@ -225,13 +242,8 @@ async function apiFetch(url, options = {}, retry = true) {
 
   // Attempt to attach Firebase App Check token
   try {
-    const appCheckInstance = window.firebase && firebase.appCheck ? firebase.appCheck() : null;
-    if (appCheckInstance) {
-      const appCheckResult = await appCheckInstance.getToken(false);
-      if (appCheckResult && appCheckResult.token) {
-        headers['X-Firebase-AppCheck'] = appCheckResult.token;
-      }
-    }
+    const appCheckHeaders = await getAppCheckHeaders();
+    Object.assign(headers, appCheckHeaders);
   } catch (err) {
     console.warn('[APP-CHECK-WARNING] Failed to obtain App Check token:', err);
   }
@@ -297,24 +309,28 @@ async function initializeAppAuth() {
 
     // Initialize Firebase App Check with reCAPTCHA v3 site key (non-secret)
     const RECAPTCHA_SITE_KEY = '6Lcc-bcqAAAAAO0P4V9pZf06zYk1U6D90T5oJ1Gv'; // TODO: Replace with your actual reCAPTCHA v3 site key in production
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      try {
-        const appCheck = firebase.appCheck();
-        appCheck.activate(RECAPTCHA_SITE_KEY, true);
-        console.log('Firebase App Check initialized.');
-      } catch (err) {
-        console.warn('App Check failed to initialize:', err);
+    if (ENABLE_APP_CHECK) {
+      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        try {
+          const appCheck = firebase.appCheck();
+          appCheck.activate(RECAPTCHA_SITE_KEY, true);
+          console.log('Firebase App Check initialized.');
+        } catch (err) {
+          console.warn('App Check failed to initialize:', err);
+        }
+      } else {
+        // Localhost debug provider
+        self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+        try {
+          const appCheck = firebase.appCheck();
+          appCheck.activate(RECAPTCHA_SITE_KEY, true);
+          console.log('Firebase App Check initialized in debug mode.');
+        } catch (err) {
+          console.warn('App Check failed to initialize in debug mode:', err);
+        }
       }
     } else {
-      // Localhost debug provider
-      self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-      try {
-        const appCheck = firebase.appCheck();
-        appCheck.activate(RECAPTCHA_SITE_KEY, true);
-        console.log('Firebase App Check initialized in debug mode.');
-      } catch (err) {
-        console.warn('App Check failed to initialize in debug mode:', err);
-      }
+      console.log('Firebase App Check is disabled in monitor/disabled setup.');
     }
     auth = firebase.auth();
     
