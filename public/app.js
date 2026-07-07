@@ -1052,13 +1052,18 @@ async function startPracticeQuiz(type, targetId, limit) {
       categoryId: categoryIds[0], // pass first categoryId for API attempt save validator
       name: title,
       icon: type === 'mainSubject' ? (targetObj.icon || '🧠') : '🧠',
-      partObj: { id: targetId, name: title, short: 'ฝึกฝน', bg: 'rgba(79,195,247,.12)', tc: 'var(--accent)' },
-      examSet: {
+      partObj: {
         id: targetId,
-        title: title,
-        mode: 'practice',
-        showExplanationAfterSubmit: true
-      }
+        name: title,
+        short: 'ฝึกฝน',
+        bg: 'rgba(79,195,247,.12)',
+        tc: 'var(--accent)'
+      },
+      isPracticeHierarchy: true,
+      practiceType: type,
+      practiceTargetId: targetId,
+      practiceTitle: title,
+      examSet: null
     };
 
     clearInterval(timerInterval);
@@ -1085,13 +1090,14 @@ function normalizeQuestionForClient(q) {
     -1;
 
   return {
+    id: q.id || q._id || q.questionId || '',
+    questionId: q.questionId || q.id || q._id || '',
     q: questionText,
     opts: choices,
     ans: correctAnswerIndex,
     explain: q.explanation || q.explain || '',
     topic: q.topic || q.source || '',
-    difficulty: q.difficulty || 'medium',
-    id: q.id || q._id || ''
+    difficulty: q.difficulty || 'medium'
   };
 }
 
@@ -1350,22 +1356,24 @@ async function finishQuiz(timedOut = false) {
   
   let attemptSaveMessage = '';
   if (currentSubject.categoryId) {
+    const mode = isRealExamA
+      ? 'real_exam_a'
+      : (currentSubject.examSet?.mode || 'practice');
+
     const attemptPayload = {
       categoryId: currentSubject.categoryId,
       guestName: currentUser ? undefined : 'Guest',
-      mode: isRealExamA ? 'real_exam_a' : (currentSubject.examSet?.mode || 'practice'),
-      examSetId: isRealExamA ? undefined : currentSubject.examSet?.id,
-      examSetTitle: isRealExamA ? undefined : currentSubject.examSet?.title,
+      mode,
       totalQuestions: total,
       correctCount: correct,
       answers: currentQuestions.map((question, index) => ({
-        questionId: question.id || question.questionId,
-        questionText: question.q,
-        choices: question.opts,
+        questionId: question.id || question.questionId || '',
+        questionText: question.q || '',
+        choices: question.opts || [],
         selectedAnswerIndex: userAnswers[index],
         correctAnswerIndex: question.ans,
         isCorrect: userAnswers[index] === question.ans,
-        explanation: question.explain,
+        explanation: question.explain || '',
       })),
       startedAt: new Date(quizStartTime).toISOString(),
       submittedAt: new Date().toISOString(),
@@ -1378,6 +1386,18 @@ async function finishQuiz(timedOut = false) {
         }
       } : {})
     };
+
+    if (mode === 'exam' && currentSubject.examSet?.id) {
+      attemptPayload.examSetId = currentSubject.examSet.id;
+      attemptPayload.examSetTitle = currentSubject.examSet.title;
+    }
+
+    if (currentSubject.isPracticeHierarchy) {
+      attemptPayload.practiceType = currentSubject.practiceType;
+      attemptPayload.practiceTargetId = currentSubject.practiceTargetId;
+      attemptPayload.practiceTitle = currentSubject.practiceTitle;
+    }
+
     try {
       const response = await apiFetch('/api/exam-attempts', {
         method: 'POST',
@@ -1385,9 +1405,17 @@ async function finishQuiz(timedOut = false) {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
+        console.error('[ATTEMPT_SAVE_FAILED]', {
+          status: response.status,
+          response: data,
+          payload: attemptPayload
+        });
         attemptSaveMessage = response.status === 401 ? 'กรุณาเข้าสู่ระบบใหม่เพื่อบันทึกผลสอบ' : (data.error || 'ไม่สามารถบันทึกผลสอบได้');
       }
-    } catch (e) { attemptSaveMessage = 'ไม่สามารถบันทึกผลสอบได้ กรุณาลองใหม่อีกครั้ง'; }
+    } catch (e) {
+      console.error('[ATTEMPT_SAVE_EXCEPTION]', e);
+      attemptSaveMessage = 'ไม่สามารถบันทึกผลสอบได้ กรุณาลองใหม่อีกครั้ง';
+    }
   }
   
   const passingScore = currentSubject.examSet?.passingScorePercent ?? 60;

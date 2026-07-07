@@ -107,6 +107,16 @@ async function createExamAttempt(data, user) {
     attemptPayload.usedTimeSeconds = durationSeconds;
   }
 
+  if (data.practiceType !== undefined) {
+    attemptPayload.practiceType = data.practiceType;
+  }
+  if (data.practiceTargetId !== undefined) {
+    attemptPayload.practiceTargetId = data.practiceTargetId;
+  }
+  if (data.practiceTitle !== undefined) {
+    attemptPayload.practiceTitle = data.practiceTitle;
+  }
+
   // Add user information if user is logged in
   if (user) {
     const userDoc = await db.collection('users').doc(user.sub).get();
