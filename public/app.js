@@ -300,7 +300,7 @@ const PRACTICE_EXAM_STRUCTURE = [
 // Source of truth is now Firestore and Exam Packs.
 
 // ===== STATE =====
-const APP_VERSION = '1.2.16';
+const APP_VERSION = '1.2.17';
 console.log(`App version: ${APP_VERSION}`);
 
 let authReadyResolve;
@@ -1159,6 +1159,10 @@ async function startPracticeQuiz(type, targetId, limit) {
     );
     const rawPoolCount = validAllQuestions.length;
 
+    const subSubjectKeywords = type === 'subSubject'
+      ? (targetObj.topics || []).flatMap(t => t.keywords || []).filter(Boolean)
+      : [];
+
     if (type === 'topic') {
       const matchedQuestions = validAllQuestions.filter(q => {
         const fields = [
@@ -1203,6 +1207,47 @@ async function startPracticeQuiz(type, targetId, limit) {
         });
         filtered = validAllQuestions;
       }
+    } else if (type === 'subSubject' && subSubjectKeywords.length > 0) {
+      const matchedQuestions = validAllQuestions.filter(q => {
+        const fields = [
+          q.topic || '',
+          q.categoryName || '',
+          q.q || '',
+          q.explain || '',
+          q.source || ''
+        ];
+        const normalizedContent = fields
+          .map(f => String(f).toLowerCase().trim().replace(/\s+/g, ' '))
+          .join(' ');
+
+        return subSubjectKeywords.some(kw => {
+          const normalizedKw = kw.toLowerCase().trim().replace(/\s+/g, ' ');
+          return normalizedContent.includes(normalizedKw);
+        });
+      });
+
+      matchedCount = matchedQuestions.length;
+
+      if (matchedCount > 0) {
+        if (matchedCount < limit && rawPoolCount > matchedCount) {
+          const matchedIds = new Set(matchedQuestions.map(q => q.questionId || q.id));
+          topUpQuestions = validAllQuestions
+            .filter(q => !matchedIds.has(q.questionId || q.id))
+            .sort(() => 0.5 - Math.random())
+            .slice(0, limit - matchedCount);
+          filtered = [...matchedQuestions, ...topUpQuestions];
+        } else {
+          filtered = matchedQuestions;
+        }
+      } else {
+        console.warn('[PRACTICE_SUBJECT_FALLBACK]', {
+          targetId,
+          title,
+          keywords: subSubjectKeywords,
+          categoryIds
+        });
+        filtered = validAllQuestions;
+      }
     } else {
       filtered = validAllQuestions;
       matchedCount = rawPoolCount;
@@ -1220,14 +1265,25 @@ async function startPracticeQuiz(type, targetId, limit) {
     const selected = shuffled.slice(0, limit);
     const selectedCount = selected.length;
 
-    console.log('[PRACTICE_TOPIC_MATCH]', {
-      targetId,
-      title,
-      rawPoolCount,
-      matchedCount,
-      topUpCount: topUpQuestions.length,
-      selectedCount
-    });
+    if (type === 'subSubject' && subSubjectKeywords.length > 0) {
+      console.log('[PRACTICE_SUBJECT_MATCH]', {
+        targetId,
+        title,
+        rawPoolCount,
+        matchedCount,
+        topUpCount: topUpQuestions.length,
+        selectedCount
+      });
+    } else {
+      console.log('[PRACTICE_TOPIC_MATCH]', {
+        targetId,
+        title,
+        rawPoolCount,
+        matchedCount,
+        topUpCount: topUpQuestions.length,
+        selectedCount
+      });
+    }
 
     currentQuestions = selected;
     currentQ = 0;
