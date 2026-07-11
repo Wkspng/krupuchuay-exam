@@ -327,17 +327,12 @@ async function getRandomQuestionsFromPack(categoryId, limit) {
       return [];
     }
 
-    if (indexData.totalQuestions < limit) {
-      return null; // fallback
-    }
-
-    // Randomly select chunks to fulfill limit
-    const shuffledChunkIds = [...chunkIds].sort(() => Math.random() - 0.5);
+    // Load ALL chunks so every question has an equal chance of being drawn.
+    // Previously we stopped after the first chunk(s) that reached `limit`, which
+    // meant the earliest chunk was returned almost every time and later chunks
+    // rarely appeared — practice kept surfacing the same questions.
     const loadedQuestions = [];
-
-    for (const chunkId of shuffledChunkIds) {
-      if (loadedQuestions.length >= limit) break;
-
+    for (const chunkId of chunkIds) {
       const chunkDoc = await db.collection('examPackChunks').doc(chunkId).get();
       if (chunkDoc.exists) {
         const chunkData = chunkDoc.data();
@@ -347,7 +342,7 @@ async function getRandomQuestionsFromPack(categoryId, limit) {
       }
     }
 
-    // Shuffle the loaded questions in memory
+    // Fisher-Yates shuffle over the full pool, then take `limit`
     for (let i = loadedQuestions.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [loadedQuestions[i], loadedQuestions[j]] = [loadedQuestions[j], loadedQuestions[i]];

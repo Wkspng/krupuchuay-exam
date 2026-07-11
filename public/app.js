@@ -1154,6 +1154,18 @@ function toggleSubSubjects(mainSubId) {
   }
 }
 
+// Proper uniform shuffle (Fisher-Yates). Array.sort(() => 0.5 - Math.random())
+// is NOT uniform and biases which items end up first — which made practice
+// repeatedly surface the same questions. Returns a new shuffled array.
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 async function startPracticeQuiz(type, targetId, limit) {
   const loader = document.getElementById('authLoader');
   if (loader) loader.style.display = 'flex';
@@ -1284,7 +1296,6 @@ async function startPracticeQuiz(type, targetId, limit) {
       const matchedQuestions = validAllQuestions.filter(q => {
         const fields = [
           q.topic || '',
-          q.categoryName || '',
           q.q || '',
           q.explain || '',
           q.source || ''
@@ -1305,13 +1316,12 @@ async function startPracticeQuiz(type, targetId, limit) {
       matchedCount = matchedQuestions.length;
 
       if (matchedCount > 0) {
-        const shuffledMatched = [...matchedQuestions].sort(() => 0.5 - Math.random());
+        const shuffledMatched = shuffleArray(matchedQuestions);
         if (matchedCount < limit && rawPoolCount > matchedCount) {
           const matchedIds = new Set(matchedQuestions.map(q => q.questionId || q.id));
           topUpQuestions = validAllQuestions
-            .filter(q => !matchedIds.has(q.questionId || q.id))
-            .sort(() => 0.5 - Math.random())
-            .slice(0, limit - matchedCount);
+            .filter(q => !matchedIds.has(q.questionId || q.id));
+          topUpQuestions = shuffleArray(topUpQuestions).slice(0, limit - matchedCount);
           filtered = [...shuffledMatched, ...topUpQuestions];
         } else {
           filtered = shuffledMatched;
@@ -1329,7 +1339,6 @@ async function startPracticeQuiz(type, targetId, limit) {
       const matchedQuestions = validAllQuestions.filter(q => {
         const fields = [
           q.topic || '',
-          q.categoryName || '',
           q.q || '',
           q.explain || '',
           q.source || ''
@@ -1347,13 +1356,12 @@ async function startPracticeQuiz(type, targetId, limit) {
       matchedCount = matchedQuestions.length;
 
       if (matchedCount > 0) {
-        const shuffledMatched = [...matchedQuestions].sort(() => 0.5 - Math.random());
+        const shuffledMatched = shuffleArray(matchedQuestions);
         if (matchedCount < limit && rawPoolCount > matchedCount) {
           const matchedIds = new Set(matchedQuestions.map(q => q.questionId || q.id));
           topUpQuestions = validAllQuestions
-            .filter(q => !matchedIds.has(q.questionId || q.id))
-            .sort(() => 0.5 - Math.random())
-            .slice(0, limit - matchedCount);
+            .filter(q => !matchedIds.has(q.questionId || q.id));
+          topUpQuestions = shuffleArray(topUpQuestions).slice(0, limit - matchedCount);
           filtered = [...shuffledMatched, ...topUpQuestions];
         } else {
           filtered = shuffledMatched;
@@ -1385,7 +1393,7 @@ async function startPracticeQuiz(type, targetId, limit) {
     const keywordFiltered = (type === 'topic') || (type === 'subSubject' && subSubjectKeywords.length > 0);
     const selected = (keywordFiltered && matchedCount > 0)
       ? pool.slice(0, limit)
-      : pool.sort(() => 0.5 - Math.random()).slice(0, limit);
+      : shuffleArray(pool).slice(0, limit);
     const selectedCount = selected.length;
 
     if (type === 'subSubject' && subSubjectKeywords.length > 0) {

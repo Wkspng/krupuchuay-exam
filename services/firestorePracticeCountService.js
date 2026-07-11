@@ -33,7 +33,12 @@ function countMatches(questions, keywords, title) {
   const kws = (keywords || []).map(normalize).filter(Boolean);
   let c = 0;
   for (const q of questions) {
-    const content = [q.topic, q.categoryName, q.questionText, q.explanation, q.source]
+    // NOTE: categoryName is intentionally excluded — the exam packs that practice
+    // reads from strip categoryName, so matching it here would over-count (e.g.
+    // every question in "ภาษาไทย (อ่านจับใจความ ...)" would match the topic
+    // "อ่านจับใจความ"). Count only real content so the badge equals what practice
+    // actually serves.
+    const content = [q.topic, q.questionText, q.explanation, q.source]
       .map(normalize)
       .join(' ');
     if (nt && content.includes(nt)) { c++; continue; }
