@@ -1186,13 +1186,25 @@ async function startPracticeQuiz(type, targetId, limit) {
       return;
     }
 
-    // Fetch questions from all categories in parallel
-    const fetchPromises = categoryIds.map(catId => 
-      apiFetch(`/api/questions/random?categoryId=${catId}&limit=100`, { auth: false })
-        .then(res => res.ok ? res.json() : [])
-        .then(data => Array.isArray(data) ? data : (data.questions || []))
-        .catch(() => [])
-    );
+    // Fetch questions from all categories in parallel.
+    // API caps each response at 100 questions (random subset of the pack).
+    // For keyword-filtered practice (topic/subSubject) a category can hold far
+    // more than 100 questions, so fetch several rounds and de-duplicate to cover
+    // (almost) the full pool — otherwise topic-specific questions get missed.
+    const needsFullPool = (type === 'topic' || type === 'subSubject');
+    const FETCH_ROUNDS = needsFullPool ? 3 : 1;
+
+    const fetchPromises = [];
+    categoryIds.forEach(catId => {
+      for (let r = 0; r < FETCH_ROUNDS; r++) {
+        fetchPromises.push(
+          apiFetch(`/api/questions/random?categoryId=${catId}&limit=100`, { auth: false })
+            .then(res => res.ok ? res.json() : [])
+            .then(data => Array.isArray(data) ? data : (data.questions || []))
+            .catch(() => [])
+        );
+      }
+    });
 
     const results = await Promise.all(fetchPromises);
     let allQuestions = [];
@@ -1202,6 +1214,16 @@ async function startPracticeQuiz(type, targetId, limit) {
 
     // Normalize
     allQuestions = allQuestions.map(normalizeQuestionForClient);
+
+    // De-duplicate (multiple fetch rounds return overlapping random subsets)
+    const seenQuestionIds = new Set();
+    allQuestions = allQuestions.filter(q => {
+      const qid = q.questionId || q.id;
+      if (!qid) return true;
+      if (seenQuestionIds.has(qid)) return false;
+      seenQuestionIds.add(qid);
+      return true;
+    });
 
     let filtered = [];
     let matchedCount = 0;
@@ -1245,15 +1267,16 @@ async function startPracticeQuiz(type, targetId, limit) {
       matchedCount = matchedQuestions.length;
 
       if (matchedCount > 0) {
+        const shuffledMatched = [...matchedQuestions].sort(() => 0.5 - Math.random());
         if (matchedCount < limit && rawPoolCount > matchedCount) {
           const matchedIds = new Set(matchedQuestions.map(q => q.questionId || q.id));
           topUpQuestions = validAllQuestions
             .filter(q => !matchedIds.has(q.questionId || q.id))
             .sort(() => 0.5 - Math.random())
             .slice(0, limit - matchedCount);
-          filtered = [...matchedQuestions, ...topUpQuestions];
+          filtered = [...shuffledMatched, ...topUpQuestions];
         } else {
-          filtered = matchedQuestions;
+          filtered = shuffledMatched;
         }
       } else {
         console.warn('[PRACTICE_TOPIC_FALLBACK]', {
@@ -1286,15 +1309,16 @@ async function startPracticeQuiz(type, targetId, limit) {
       matchedCount = matchedQuestions.length;
 
       if (matchedCount > 0) {
+        const shuffledMatched = [...matchedQuestions].sort(() => 0.5 - Math.random());
         if (matchedCount < limit && rawPoolCount > matchedCount) {
           const matchedIds = new Set(matchedQuestions.map(q => q.questionId || q.id));
           topUpQuestions = validAllQuestions
             .filter(q => !matchedIds.has(q.questionId || q.id))
             .sort(() => 0.5 - Math.random())
             .slice(0, limit - matchedCount);
-          filtered = [...matchedQuestions, ...topUpQuestions];
+          filtered = [...shuffledMatched, ...topUpQuestions];
         } else {
-          filtered = matchedQuestions;
+          filtered = shuffledMatched;
         }
       } else {
         console.warn('[PRACTICE_SUBJECT_FALLBACK]', {
@@ -1317,9 +1341,13 @@ async function startPracticeQuiz(type, targetId, limit) {
       return;
     }
 
-    // Shuffle and limit
-    const shuffled = pool.sort(() => 0.5 - Math.random());
-    const selected = shuffled.slice(0, limit);
+    // For keyword-filtered practice, keep matched-first order (matched questions
+    // were already shuffled within their group and placed ahead of top-up ones).
+    // For everything else, shuffle the whole pool.
+    const keywordFiltered = (type === 'topic') || (type === 'subSubject' && subSubjectKeywords.length > 0);
+    const selected = (keywordFiltered && matchedCount > 0)
+      ? pool.slice(0, limit)
+      : pool.sort(() => 0.5 - Math.random()).slice(0, limit);
     const selectedCount = selected.length;
 
     if (type === 'subSubject' && subSubjectKeywords.length > 0) {
