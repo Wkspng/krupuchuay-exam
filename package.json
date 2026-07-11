@@ -20,6 +20,7 @@
     "seed:thai-grammar": "node scripts/seedThaiGrammar.js",
     "seed:civics": "node scripts/seedCivicsGaps.js",
     "seed:english": "node scripts/seedEnglishGaps.js",
+    "seed:quant-gaps": "node scripts/seedQuantGaps.js",
     "counts:refresh": "node scripts/computePracticeCounts.js"
   },
   "dependencies": {
