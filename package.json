@@ -16,6 +16,7 @@
     "seed:thai-lang": "node scripts/seedThaiLang.js",
     "seed:quant": "node scripts/seedQuantReasoning.js",
     "seed:abstract": "node scripts/seedAbstractReasoning.js",
+    "seed:lang-gaps": "node scripts/seedLangEnglishGaps.js",
     "counts:refresh": "node scripts/computePracticeCounts.js"
   },
   "dependencies": {
