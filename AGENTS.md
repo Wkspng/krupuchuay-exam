@@ -49,8 +49,17 @@
 ## Seed Scripts
 ```bash
 npm run seed:thai-lang   # import ภาษาไทย 99 ข้อ → Firestore
+npm run seed:quant       # import ข้อสอบคิดวิเคราะห์เชิงปริมาณ → Firestore
+npm run counts:refresh   # คำนวณจำนวนข้อต่อเรื่องย่อยใหม่ → appConfig/practiceTopicCounts
 npm run create-admin     # สร้าง admin user
 ```
+
+## Practice Topic Counts (badge จำนวนข้อ)
+- badge "N ข้อ" บนหน้าฝึกอ่านจาก `GET /api/practice/topic-counts` (1 read) ไม่ดึงข้อสอบทั้งคลัง
+- ตัวเลข precompute เก็บที่ `appConfig/practiceTopicCounts` โดย `services/firestorePracticeCountService.js`
+  ซึ่ง extract `PRACTICE_EXAM_STRUCTURE` จาก `public/app.js` เอง (single source of truth)
+- **รีเฟรชอัตโนมัติ** ตอน `compileExamPacks.js` (recompile) หรือรัน `npm run counts:refresh` เอง
+- หลังเพิ่ม/ลบข้อสอบ → recompile exam pack แล้วตัวเลขจะอัปเดตให้เอง
 
 ## Deploy
 ```bash

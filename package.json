@@ -14,7 +14,8 @@
     "sanity-check": "node scripts/sanityCheckMigration.js",
     "test:firestore": "node scripts/testFirestoreEndToEnd.js",
     "seed:thai-lang": "node scripts/seedThaiLang.js",
-    "seed:quant": "node scripts/seedQuantReasoning.js"
+    "seed:quant": "node scripts/seedQuantReasoning.js",
+    "counts:refresh": "node scripts/computePracticeCounts.js"
   },
   "dependencies": {
     "cors": "^2.8.6",
