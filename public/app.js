@@ -1087,7 +1087,7 @@ async function buildHome() {
         html += `
           <div onclick="startPracticeQuiz('topic', '${top.id}', 20)" class="option-btn" style="padding: 8px 12px; font-size: 13px; border-radius: 8px; margin: 0; background: var(--navy); border-color: rgba(255,255,255,0.05); cursor: pointer; transition: all 0.15s ease; display: flex; align-items: center; justify-content: space-between;">
             <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 6px;">📝 ${top.title}</span>
-            <span style="font-size: 10px; color: var(--accent); background: rgba(79,195,247,0.1); padding: 1px 6px; border-radius: 4px; flex-shrink: 0;">20 ข้อ</span>
+            <span id="count-${mainSub.id}-${sub.id}-${top.id}" style="font-size: 10px; color: var(--accent); background: rgba(79,195,247,0.1); padding: 1px 6px; border-radius: 4px; flex-shrink: 0;">… ข้อ</span>
           </div>
         `;
       });
@@ -1106,6 +1106,94 @@ async function buildHome() {
 
   html += `</div>`;
   document.getElementById('subjectContainer').innerHTML = html;
+
+  // Fill real per-topic question counts asynchronously (keeps home render fast)
+  updatePracticeCounts();
+}
+
+// Count how many active questions match a topic's keywords/title
+// (mirrors the filtering used in startPracticeQuiz).
+function countPracticeMatches(questions, keywords, title) {
+  const normTitle = String(title || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  const kws = (keywords || []).map(kw => String(kw).toLowerCase().trim().replace(/\s+/g, ' '));
+  let count = 0;
+  for (const q of questions) {
+    const content = [q.topic, q.categoryName, q.questionText, q.explanation, q.source]
+      .map(f => String(f || '').toLowerCase().trim().replace(/\s+/g, ' '))
+      .join(' ');
+    if (normTitle && content.includes(normTitle)) { count++; continue; }
+    if (kws.some(kw => kw && content.includes(kw))) count++;
+  }
+  return count;
+}
+
+// Fetch questions per referenced category (once) and write real counts into the
+// topic badges. Uses /api/questions which returns the full category set (up to
+// 500), so counts are not limited by the 100-per-response random cap.
+let _practiceCountCache = null; // { name(lowercased) -> questions[] } cached for the session
+
+async function updatePracticeCounts() {
+  try {
+    // Collect every category name referenced by the structure
+    const neededNames = new Set();
+    PRACTICE_EXAM_STRUCTURE.forEach(m => {
+      (m.categoryNames || []).forEach(n => neededNames.add(n));
+      (m.subSubjects || []).forEach(s => {
+        (s.categoryNames || []).forEach(n => neededNames.add(n));
+        (s.topics || []).forEach(t => (t.categoryNames || []).forEach(n => neededNames.add(n)));
+      });
+    });
+
+    // Resolve names -> category id and fetch each category's questions once.
+    // Cache across buildHome() calls so navigating back home doesn't refetch.
+    let byName = _practiceCountCache;
+    if (!byName) {
+      byName = {}; // lowercased name -> questions[]
+      await Promise.all([...neededNames].map(async (name) => {
+        const norm = String(name).toLowerCase().trim();
+        const cat = (mongoQuizCategories || []).find(c =>
+          String(c.name || c.categoryName || '').toLowerCase().trim() === norm);
+        if (!cat) { byName[norm] = []; return; }
+        try {
+          const res = await apiFetch(`/api/questions?categoryId=${cat.id || cat._id}`, { auth: false });
+          const data = res.ok ? await res.json() : [];
+          byName[norm] = Array.isArray(data) ? data : (data.questions || []);
+        } catch {
+          byName[norm] = [];
+        }
+      }));
+      _practiceCountCache = byName;
+    }
+
+    const questionsForCats = (catNames) => {
+      const seen = new Set();
+      const out = [];
+      (catNames || []).forEach(n => {
+        (byName[String(n).toLowerCase().trim()] || []).forEach(q => {
+          const id = q.id || q._id;
+          if (id && seen.has(id)) return;
+          if (id) seen.add(id);
+          out.push(q);
+        });
+      });
+      return out;
+    };
+
+    // Write counts into each topic badge
+    PRACTICE_EXAM_STRUCTURE.forEach(m => {
+      (m.subSubjects || []).forEach(s => {
+        (s.topics || []).forEach(t => {
+          const el = document.getElementById(`count-${m.id}-${s.id}-${t.id}`);
+          if (!el) return;
+          const pool = questionsForCats(t.categoryNames || s.categoryNames);
+          const n = countPracticeMatches(pool, t.keywords, t.title);
+          el.textContent = `${n} ข้อ`;
+        });
+      });
+    });
+  } catch (err) {
+    console.warn('[PRACTICE_COUNTS_FAILED]', err);
+  }
 }
 
 function toggleSubSubjects(mainSubId) {
