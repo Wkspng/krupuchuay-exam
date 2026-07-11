@@ -61,22 +61,34 @@ async function main() {
     const snap = await db.collection('questions').where('categoryId', '==', cid).where('isActive', '==', true).get();
     if (snap.empty) continue;
 
+    // ตัวเลือกที่เป็น "ตัวเลข/สั้น" -> โจทย์คณิต (same choices ≠ same question)
+    const isNumericChoice = c => {
+      const s = String(c || '').trim();
+      return s.length <= 8 && /\d/.test(s) && !/[ก-๙a-z]{3}/i.test(s);
+    };
+
     // group by choices+answer key
     const groups = new Map();
     snap.forEach(d => {
       const q = d.data();
       const choices = (q.choices || []);
       const ck = choices.map(norm).sort().join('|') + '#' + norm(choices[q.correctAnswerIndex]);
+      const numeric = choices.length > 0 && choices.filter(isNumericChoice).length >= 3;
       if (!groups.has(ck)) groups.set(ck, []);
-      groups.get(ck).push({ id: d.id, text: q.questionText || '', ntext: norm(q.questionText), catName: q.categoryName });
+      groups.get(ck).push({ id: d.id, text: q.questionText || '', ntext: norm(q.questionText), catName: q.categoryName, numeric });
     });
 
     for (const items of groups.values()) {
       if (items.length < 2) continue;
+      // ตัวเลือกที่เป็นตัวเลข หรือถูกใช้ซ้ำเป็น template หลายข้อ (เช่นแบบเปรียบเทียบ/
+      // ความเพียงพอ ที่ 4 ตัวเลือกเหมือนกันทุกข้อ) => โจทย์ต่างกันที่เนื้อหา ต้องคล้าย
+      // เกือบเป๊ะ (0.92) จึงถือว่าซ้ำ กันลบโจทย์คนละข้อที่ใช้ตัวเลือกชุดเดียวกัน
+      const templated = items.some(it => it.numeric) || items.length >= 3;
+      const groupThreshold = templated ? 0.92 : SIM_THRESHOLD;
       // survivors[]: หนึ่งตัวต่อกลุ่มย่อยที่คล้ายกัน
       const survivors = [];
       for (const it of items) {
-        const match = survivors.find(s => similarity(s.ntext, it.ntext) >= SIM_THRESHOLD);
+        const match = survivors.find(s => similarity(s.ntext, it.ntext) >= groupThreshold);
         if (!match) { survivors.push(it); continue; }
         // เก็บตัวที่โจทย์ยาวกว่า
         if (it.text.length > match.text.length) {
@@ -90,10 +102,18 @@ async function main() {
   }
 
   totalDup = toDeactivate.length;
-  console.log(`\nพบข้อซ้ำที่จะปิดใช้งาน: ${totalDup} ข้อ`);
-  toDeactivate.slice(0, 30).forEach((d, i) =>
-    console.log(`  ${i + 1}. ลบ: "${d.text.slice(0, 55)}"\n      เก็บ: "${d.keep.slice(0, 55)}"`));
-  if (totalDup > 30) console.log(`  ... และอีก ${totalDup - 30} ข้อ`);
+  const reworded = toDeactivate.filter(d => norm(d.text) !== norm(d.keep));
+  const exact = totalDup - reworded.length;
+  console.log(`\nพบข้อซ้ำที่จะปิดใช้งาน: ${totalDup} ข้อ (เหมือนเป๊ะ ${exact} · เขียนต่าง ${reworded.length})`);
+  if (process.argv.includes('--show-reworded')) {
+    console.log('\n=== เฉพาะคู่ที่เขียนต่างกัน (ต้องตรวจ) ===');
+    reworded.forEach((d, i) =>
+      console.log(`  ${i + 1}. ลบ:  "${d.text.replace(/\n/g, ' ').slice(0, 70)}"\n      เก็บ: "${d.keep.replace(/\n/g, ' ').slice(0, 70)}"`));
+  } else {
+    toDeactivate.slice(0, 30).forEach((d, i) =>
+      console.log(`  ${i + 1}. ลบ: "${d.text.slice(0, 55)}"\n      เก็บ: "${d.keep.slice(0, 55)}"`));
+    if (totalDup > 30) console.log(`  ... และอีก ${totalDup - 30} ข้อ (ใช้ --show-reworded เพื่อดูคู่ที่เขียนต่าง)`);
+  }
 
   if (!dryRun && totalDup > 0) {
     let batch = db.batch(), ops = 0;
