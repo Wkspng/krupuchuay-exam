@@ -13,7 +13,8 @@
     "approve-user": "node scripts/approveUser.js",
     "sanity-check": "node scripts/sanityCheckMigration.js",
     "test:firestore": "node scripts/testFirestoreEndToEnd.js",
-    "seed:thai-lang": "node scripts/seedThaiLang.js"
+    "seed:thai-lang": "node scripts/seedThaiLang.js",
+    "seed:quant": "node scripts/seedQuantReasoning.js"
   },
   "dependencies": {
     "cors": "^2.8.6",
