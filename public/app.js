@@ -1231,8 +1231,12 @@ async function startPracticeQuiz(type, targetId, limit) {
     const fetchPromises = [];
     categoryIds.forEach(catId => {
       for (let r = 0; r < FETCH_ROUNDS; r++) {
+        // Unique nonce per round so the browser can't coalesce/cache the
+        // identical requests — each round hits the server and gets a fresh
+        // random draw, widening the real pool the session samples from.
+        const nonce = `${Date.now()}_${r}_${Math.random().toString(36).slice(2)}`;
         fetchPromises.push(
-          apiFetch(`/api/questions/random?categoryId=${catId}&limit=100`, { auth: false })
+          apiFetch(`/api/questions/random?categoryId=${catId}&limit=100&_r=${nonce}`, { auth: false })
             .then(res => res.ok ? res.json() : [])
             .then(data => Array.isArray(data) ? data : (data.questions || []))
             .catch(() => [])
