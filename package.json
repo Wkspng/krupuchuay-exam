@@ -18,6 +18,7 @@
     "seed:abstract": "node scripts/seedAbstractReasoning.js",
     "seed:lang-gaps": "node scripts/seedLangEnglishGaps.js",
     "seed:thai-grammar": "node scripts/seedThaiGrammar.js",
+    "seed:civics": "node scripts/seedCivicsGaps.js",
     "counts:refresh": "node scripts/computePracticeCounts.js"
   },
   "dependencies": {
