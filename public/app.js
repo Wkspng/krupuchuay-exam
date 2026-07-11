@@ -1111,83 +1111,29 @@ async function buildHome() {
   updatePracticeCounts();
 }
 
-// Count how many active questions match a topic's keywords/title
-// (mirrors the filtering used in startPracticeQuiz).
-function countPracticeMatches(questions, keywords, title) {
-  const normTitle = String(title || '').toLowerCase().trim().replace(/\s+/g, ' ');
-  const kws = (keywords || []).map(kw => String(kw).toLowerCase().trim().replace(/\s+/g, ' '));
-  let count = 0;
-  for (const q of questions) {
-    const content = [q.topic, q.categoryName, q.questionText, q.explanation, q.source]
-      .map(f => String(f || '').toLowerCase().trim().replace(/\s+/g, ' '))
-      .join(' ');
-    if (normTitle && content.includes(normTitle)) { count++; continue; }
-    if (kws.some(kw => kw && content.includes(kw))) count++;
-  }
-  return count;
-}
-
-// Fetch questions per referenced category (once) and write real counts into the
-// topic badges. Uses /api/questions which returns the full category set (up to
-// 500), so counts are not limited by the 100-per-response random cap.
-let _practiceCountCache = null; // { name(lowercased) -> questions[] } cached for the session
+// Read precomputed per-topic counts from a single tiny endpoint (1 Firestore
+// read server-side) and write them into the topic badges. Counts are refreshed
+// admin-side whenever the exam packs are recompiled, so this avoids downloading
+// the whole question bank on every home load.
+let _practiceCountCache = null; // { compositeTopicId -> count } cached for the session
 
 async function updatePracticeCounts() {
   try {
-    // Collect every category name referenced by the structure
-    const neededNames = new Set();
-    PRACTICE_EXAM_STRUCTURE.forEach(m => {
-      (m.categoryNames || []).forEach(n => neededNames.add(n));
-      (m.subSubjects || []).forEach(s => {
-        (s.categoryNames || []).forEach(n => neededNames.add(n));
-        (s.topics || []).forEach(t => (t.categoryNames || []).forEach(n => neededNames.add(n)));
-      });
-    });
-
-    // Resolve names -> category id and fetch each category's questions once.
-    // Cache across buildHome() calls so navigating back home doesn't refetch.
-    let byName = _practiceCountCache;
-    if (!byName) {
-      byName = {}; // lowercased name -> questions[]
-      await Promise.all([...neededNames].map(async (name) => {
-        const norm = String(name).toLowerCase().trim();
-        const cat = (mongoQuizCategories || []).find(c =>
-          String(c.name || c.categoryName || '').toLowerCase().trim() === norm);
-        if (!cat) { byName[norm] = []; return; }
-        try {
-          const res = await apiFetch(`/api/questions?categoryId=${cat.id || cat._id}`, { auth: false });
-          const data = res.ok ? await res.json() : [];
-          byName[norm] = Array.isArray(data) ? data : (data.questions || []);
-        } catch {
-          byName[norm] = [];
-        }
-      }));
-      _practiceCountCache = byName;
+    let counts = _practiceCountCache;
+    if (!counts) {
+      const res = await apiFetch('/api/practice/topic-counts', { auth: false });
+      const data = res.ok ? await res.json() : { counts: {} };
+      counts = data.counts || {};
+      _practiceCountCache = counts;
     }
 
-    const questionsForCats = (catNames) => {
-      const seen = new Set();
-      const out = [];
-      (catNames || []).forEach(n => {
-        (byName[String(n).toLowerCase().trim()] || []).forEach(q => {
-          const id = q.id || q._id;
-          if (id && seen.has(id)) return;
-          if (id) seen.add(id);
-          out.push(q);
-        });
-      });
-      return out;
-    };
-
-    // Write counts into each topic badge
     PRACTICE_EXAM_STRUCTURE.forEach(m => {
       (m.subSubjects || []).forEach(s => {
         (s.topics || []).forEach(t => {
           const el = document.getElementById(`count-${m.id}-${s.id}-${t.id}`);
           if (!el) return;
-          const pool = questionsForCats(t.categoryNames || s.categoryNames);
-          const n = countPracticeMatches(pool, t.keywords, t.title);
-          el.textContent = `${n} ข้อ`;
+          const n = counts[`${m.id}-${s.id}-${t.id}`];
+          el.textContent = `${n === undefined ? 0 : n} ข้อ`;
         });
       });
     });

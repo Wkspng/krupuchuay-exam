@@ -67,6 +67,18 @@ async function main() {
     await processCategory(categoryId);
   }
 
+  // Refresh precomputed practice topic counts so badges stay in sync with the
+  // question bank after a recompile (no separate admin step needed).
+  if (!dryRun) {
+    try {
+      const practiceCountService = require('../services/firestorePracticeCountService');
+      const res = await practiceCountService.computeAndStoreCounts();
+      console.log(`\n✅ Refreshed practice topic counts (${res.topics} topics)`);
+    } catch (err) {
+      console.error('⚠️  Failed to refresh practice topic counts:', err.message);
+    }
+  }
+
   console.log(`\n=== COMPILATION COMPLETED ===`);
 }
 

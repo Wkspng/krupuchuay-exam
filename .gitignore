@@ -13,3 +13,4 @@ service-account*.json
 
 .firebase/
 
+scratch/
