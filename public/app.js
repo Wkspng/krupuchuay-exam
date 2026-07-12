@@ -1858,6 +1858,18 @@ async function finishQuiz(timedOut = false) {
 
 function retryQuiz() {
   if (currentSubject?.examSet?.id) { startExamSet(currentSubject.examSet.id); return; }
+  // Practice-hierarchy quizzes use a topic/subSubject id, not a category id —
+  // restart via startPracticeQuiz instead of startQuiz (which would fail to find
+  // a matching category and alert "ไม่พบหมวดข้อสอบที่ระบุ").
+  if (currentSubject?.isPracticeHierarchy) {
+    const limitByType = { topic: 20, subSubject: 30, mainSubject: 50 };
+    startPracticeQuiz(
+      currentSubject.practiceType,
+      currentSubject.practiceTargetId,
+      limitByType[currentSubject.practiceType] || 20
+    );
+    return;
+  }
   currentSubject.id.startsWith('mongo:') ? startMongoQuiz(currentSubject.categoryId) : startQuiz(currentSubject.id);
 }
 
