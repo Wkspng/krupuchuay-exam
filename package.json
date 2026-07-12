@@ -21,6 +21,7 @@
     "seed:civics": "node scripts/seedCivicsGaps.js",
     "seed:english": "node scripts/seedEnglishGaps.js",
     "seed:quant-gaps": "node scripts/seedQuantGaps.js",
+    "seed:round2": "node scripts/seedRound2Gaps.js",
     "counts:refresh": "node scripts/computePracticeCounts.js"
   },
   "dependencies": {
