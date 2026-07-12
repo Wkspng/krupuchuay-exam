@@ -77,7 +77,7 @@ async function getQuestionById(req, res) {
 async function getRandomQuestions(req, res) {
   let limit = Number.parseInt(req.query.limit, 10);
   if (Number.isNaN(limit)) limit = 10;
-  if (limit < 1 || limit > 100) return res.status(400).json({ error: 'limit must be between 1 and 100' });
+  if (limit < 1 || limit > 500) return res.status(400).json({ error: 'limit must be between 1 and 500' });
 
   try {
     if (req.query.categoryId && !isValidId(req.query.categoryId)) {

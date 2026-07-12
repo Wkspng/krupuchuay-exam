@@ -51,7 +51,7 @@ async function getQuestionById(id) {
 }
 
 async function getRandomQuestions(categoryId, limit = 10) {
-  const finalLimit = Math.min(Math.max(limit, 1), 100);
+  const finalLimit = Math.min(Math.max(limit, 1), 500);
 
   if (categoryId) {
     try {
