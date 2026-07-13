@@ -23,6 +23,7 @@
     "seed:quant-gaps": "node scripts/seedQuantGaps.js",
     "seed:round2": "node scripts/seedRound2Gaps.js",
     "seed:counting": "node scripts/seedCountingGaps.js",
+    "seed:counting2": "node scripts/seedCounting2.js",
     "counts:refresh": "node scripts/computePracticeCounts.js"
   },
   "dependencies": {
