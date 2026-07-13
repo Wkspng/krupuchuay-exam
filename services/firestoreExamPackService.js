@@ -68,7 +68,11 @@ async function compileCategoryExamPack(categoryId, options = {}) {
           explanation: (q.explanation || '').trim(),
           difficulty: q.difficulty || 'medium',
           topic: q.topic || '',
-          source: q.source || ''
+          source: q.source || '',
+          // Optional figure fields (SVG) for image-based questions e.g. อนุกรมภาพ.
+          // Only included when present so text-only questions add no bytes.
+          ...(q.questionSvg ? { questionSvg: q.questionSvg } : {}),
+          ...(Array.isArray(q.choiceSvgs) && q.choiceSvgs.length ? { choiceSvgs: q.choiceSvgs } : {})
         });
       }
     });

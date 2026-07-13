@@ -1473,8 +1473,22 @@ function normalizeQuestionForClient(q) {
     topic: q.topic || '',
     source: q.source || '',
     categoryName: q.categoryName || '',
-    difficulty: q.difficulty || 'medium'
+    difficulty: q.difficulty || 'medium',
+    svg: q.questionSvg || q.svg || '',
+    optSvgs: q.choiceSvgs || q.optSvgs || []
   };
+}
+
+// Defensive sanitizer for author-supplied SVG (figure questions). Strips any
+// scripting/interactive content before the SVG is injected into the DOM.
+function sanitizeSvg(svg) {
+  if (!svg || typeof svg !== 'string') return '';
+  let s = svg;
+  s = s.replace(/<script[\s\S]*?<\/script>/gi, '');
+  s = s.replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '');
+  s = s.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  s = s.replace(/(xlink:href|href)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, '');
+  return /^\s*<svg[\s>]/i.test(s) ? s : '';
 }
 
 async function startQuiz(subjectId) {
@@ -1671,13 +1685,24 @@ function renderQuestion() {
   document.getElementById('btnPrev').style.display = currentQ > 0 ? '' : 'none';
   document.getElementById('btnNext').textContent = currentQ === total - 1 ? '📊 ส่งข้อสอบ' : 'ถัดไป ▶';
   const L = ['ก', 'ข', 'ค', 'ง'];
+  const hasOptFigures = Array.isArray(q.optSvgs) && q.optSvgs.some(Boolean);
   const opts = q.opts.map((o, i) => {
     let cls = 'option-btn';
     if (answered && isExamMode) { if (i === userAnswers[currentQ]) cls += ' selected'; }
     else if (answered) { if (i === q.ans) cls += ' correct'; else if (i === userAnswers[currentQ] && userAnswers[currentQ] !== q.ans) cls += ' wrong'; }
     else if (i === userAnswers[currentQ]) cls += ' selected';
-    return `<button class="${cls}" onclick="selectAnswer(${i})" ${answered ? 'disabled' : ''}><span class="opt-letter">${L[i]}</span><span>${o}</span></button>`;
+    const optFig = (q.optSvgs && q.optSvgs[i]) ? sanitizeSvg(q.optSvgs[i]) : '';
+    const body = optFig
+      ? `<span class="opt-figure" style="display:inline-flex;align-items:center;justify-content:center;">${optFig}</span>`
+      : `<span>${o}</span>`;
+    return `<button class="${cls}" onclick="selectAnswer(${i})" ${answered ? 'disabled' : ''}><span class="opt-letter">${L[i]}</span>${body}</button>`;
   }).join('');
+  const optionsWrapStyle = hasOptFigures
+    ? 'display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;'
+    : '';
+  const questionFigure = q.svg
+    ? `<div class="q-figure" style="margin:10px 0;text-align:center;overflow-x:auto;">${sanitizeSvg(q.svg)}</div>`
+    : '';
   const explain = answered && !isExamMode ? `<div class="explain-box">💡 <strong>เฉลย:</strong> ${q.explain}</div>` : '';
   const difficultyLabels = { easy: 'ง่าย', medium: 'ปานกลาง', hard: 'ยาก' };
   const levelText = q.difficulty ? `📊 ระดับ: ${difficultyLabels[q.difficulty] || q.difficulty}` : `📅 ปี พ.ศ. ${q.year || '-'}`;
@@ -1692,7 +1717,7 @@ function renderQuestion() {
     sectionLabel = `หมวด: ${secNames[q.sectionKey] || q.sectionKey}`;
   }
   
-  document.getElementById('quizContainer').innerHTML = `<div class="question-card"><div class="q-num">ข้อที่ ${currentQ+1} จาก ${total}</div><div class="q-tags"><span class="q-tag tag-year">${levelText}</span><span class="q-tag tag-topic">🏷 ${q.topic}</span><span class="q-tag tag-part">${sectionLabel}</span></div><div class="q-text">${q.q}</div><div class="options">${opts}</div>${explain}</div>`;
+  document.getElementById('quizContainer').innerHTML = `<div class="question-card"><div class="q-num">ข้อที่ ${currentQ+1} จาก ${total}</div><div class="q-tags"><span class="q-tag tag-year">${levelText}</span><span class="q-tag tag-topic">🏷 ${q.topic}</span><span class="q-tag tag-part">${sectionLabel}</span></div><div class="q-text">${q.q}</div>${questionFigure}<div class="options" style="${optionsWrapStyle}">${opts}</div>${explain}</div>`;
 }
 
 function selectAnswer(i) { if (answered) return; userAnswers[currentQ] = i; answered = true; renderQuestion(); }
@@ -1862,7 +1887,9 @@ async function finishQuiz(timedOut = false) {
   document.getElementById('reviewList').innerHTML = currentQuestions.map((q, i) => {
     const ua = userAnswers[i]; const ok = ua === q.ans;
     const reviewSection = q.sectionKey ? ` · ${q.sectionKey === 'analyticalAbility' ? 'คิดวิเคราะห์' : q.sectionKey === 'englishSkill' ? 'อังกฤษ' : 'ข้าราชการที่ดี'}` : '';
-    return `<div class="review-item ${ok?'correct-item':'wrong-item'}"><div class="q-num">ข้อ ${i+1} · ${q.topic}${reviewSection} · ปี ${q.year || '-'} ${ok?'✅':'❌'}</div><div class="review-q">${q.q}</div><div class="review-ans">${ua!==-1?`<span class="your-ans">คำตอบคุณ: ${L[ua]}. ${q.opts[ua]}</span>`:'<span class="your-ans">ไม่ได้ตอบ</span>'}<span class="right-ans">เฉลย: ${L[q.ans]}. ${q.opts[q.ans]}</span></div><div class="explain-box" style="margin-top:8px">💡 ${q.explain}</div></div>`;
+    const figure = q.svg ? `<div style="margin:6px 0;overflow-x:auto;">${sanitizeSvg(q.svg)}</div>` : '';
+    const optLabel = (idx) => (q.optSvgs && q.optSvgs[idx]) ? `${L[idx]}. ${sanitizeSvg(q.optSvgs[idx])}` : `${L[idx]}. ${q.opts[idx]}`;
+    return `<div class="review-item ${ok?'correct-item':'wrong-item'}"><div class="q-num">ข้อ ${i+1} · ${q.topic}${reviewSection} · ปี ${q.year || '-'} ${ok?'✅':'❌'}</div><div class="review-q">${q.q}</div>${figure}<div class="review-ans">${ua!==-1?`<span class="your-ans">คำตอบคุณ: ${optLabel(ua)}</span>`:'<span class="your-ans">ไม่ได้ตอบ</span>'}<span class="right-ans">เฉลย: ${optLabel(q.ans)}</span></div><div class="explain-box" style="margin-top:8px">💡 ${q.explain}</div></div>`;
   }).join('');
   showPage('result');
   buildHome();

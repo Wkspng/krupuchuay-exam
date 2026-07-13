@@ -25,6 +25,7 @@
     "seed:counting": "node scripts/seedCountingGaps.js",
     "seed:counting2": "node scripts/seedCounting2.js",
     "seed:reasoning": "node scripts/seedReasoningGaps.js",
+    "gen:figures": "node scripts/genFigureSeries.js",
     "counts:refresh": "node scripts/computePracticeCounts.js"
   },
   "dependencies": {
