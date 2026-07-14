@@ -81,6 +81,29 @@
   </div>
 </div>
 
+<div id="paymentScreen" style="display:none">
+  <div class="login-box">
+    <div class="login-logo">
+      <span class="crown">💳</span>
+      <h1>ชำระค่าสมาชิก</h1>
+      <p>สแกน QR เพื่อชำระเงิน แล้วอัปโหลดสลิป — ระบบเปิดใช้งานให้ทันที</p>
+    </div>
+    <div style="text-align:center;">
+      <div id="payAmount" style="font-size:22px;font-weight:bold;color:var(--gold,#f0c040);margin-bottom:8px;">159 บาท / ปี</div>
+      <img id="payQr" alt="PromptPay QR" style="width:230px;height:230px;background:#fff;border-radius:12px;padding:8px;object-fit:contain;">
+      <div style="font-size:12px;color:#8899aa;margin-top:6px;">สแกนด้วยแอปธนาคาร (พร้อมเพย์)</div>
+    </div>
+    <div class="form-group" style="margin-top:16px;">
+      <label>อัปโหลดสลิปการโอนเงิน</label>
+      <input type="file" id="slipFile" accept="image/*" style="width:100%;padding:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#dfe8f3;">
+    </div>
+    <button class="btn-login" id="btnVerifySlip" onclick="submitSlip()">ยืนยันการชำระเงิน</button>
+    <p class="error-msg" id="payErrMsg"></p>
+    <p class="success-msg" id="paySuccessMsg" style="display:none;"></p>
+    <button class="btn-register-link" onclick="paymentLogout()" style="margin-top:8px;">◀ ออก / เข้าสู่ระบบใหม่</button>
+  </div>
+</div>
+
 <div id="appScreen">
   <div class="header">
     <span class="header-title">🎓 ครูผู้ช่วย ภาค ก. · ธรรมศาสตร์</span>

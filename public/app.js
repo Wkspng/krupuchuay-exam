@@ -550,7 +550,9 @@ async function initializeAppAuth() {
               firstCheck = false;
               authReadyResolve();
             }
-            
+
+            if (await needPaymentThenShow(idToken, user.role)) return;
+
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('appScreen').style.display = 'block';
             document.getElementById('userBadge').textContent = '👤 ' + user.name;
@@ -818,7 +820,7 @@ async function doGoogleSignIn() {
       errMsg.style.display = 'block'; await auth.signOut(); return;
     }
     const { user } = await res.json();
-    await applyLoginSession(user, idToken, errMsg);
+    await postAuth(user, idToken, errMsg);
   } catch (e) {
     if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
     console.error('[GOOGLE_SIGNIN_ERROR]', e);
@@ -829,6 +831,101 @@ async function doGoogleSignIn() {
     }
     errMsg.style.display = 'block';
   }
+}
+
+// ===== PAID MEMBERSHIP (payment gate) =====
+async function fetchPaymentConfig(idToken) {
+  try {
+    const r = await fetch('/api/payments/config', { headers: { Authorization: 'Bearer ' + idToken } });
+    if (r.ok) return await r.json();
+  } catch (e) { /* ignore */ }
+  return { enabled: false };
+}
+
+// Returns true (and shows the payment screen) if this user must pay before entering.
+async function needPaymentThenShow(idToken, role) {
+  if (role === 'admin') return false;
+  const cfg = await fetchPaymentConfig(idToken);
+  if (!cfg.enabled) return false;
+  let paid = false;
+  try {
+    const r = await fetch('/api/payments/status', { headers: { Authorization: 'Bearer ' + idToken } });
+    if (r.ok) paid = (await r.json()).paid === true;
+  } catch (e) { /* ignore */ }
+  if (paid) return false;
+  showPaymentScreen(cfg, idToken);
+  return true;
+}
+
+// Wrap the normal login gate with the payment gate.
+async function postAuth(user, idToken, errMsg) {
+  if (await needPaymentThenShow(idToken, user.role)) return false;
+  return applyLoginSession(user, idToken, errMsg);
+}
+
+function showPaymentScreen(cfg, idToken) {
+  window._payIdToken = idToken;
+  ['loginScreen', 'registerScreen', 'appScreen'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.style.display = 'none';
+  });
+  const ps = document.getElementById('paymentScreen'); if (ps) ps.style.display = 'flex';
+  document.getElementById('payAmount').textContent = (cfg.amount || 159) + ' บาท / ปี';
+  if (cfg.qrDataUrl) document.getElementById('payQr').src = cfg.qrDataUrl;
+  const pe = document.getElementById('payErrMsg'); if (pe) pe.style.display = 'none';
+  const pok = document.getElementById('paySuccessMsg'); if (pok) pok.style.display = 'none';
+}
+
+// resize/compress the slip image client-side so the upload stays small
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const max = 1000; let { width, height } = img;
+      if (width > max || height > max) { const s = Math.min(max / width, max / height); width = Math.round(width * s); height = Math.round(height * s); }
+      const c = document.createElement('canvas'); c.width = width; c.height = height;
+      c.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(c.toDataURL('image/jpeg', 0.7));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+async function submitSlip() {
+  const err = document.getElementById('payErrMsg'), ok = document.getElementById('paySuccessMsg');
+  err.style.display = 'none'; ok.style.display = 'none';
+  const f = document.getElementById('slipFile').files[0];
+  if (!f) { err.textContent = '❌ กรุณาเลือกรูปสลิปการโอนก่อน'; err.style.display = 'block'; return; }
+  const btn = document.getElementById('btnVerifySlip'); btn.disabled = true; const orig = btn.textContent; btn.textContent = 'กำลังตรวจสอบสลิป...';
+  try {
+    const imageBase64 = await compressImage(f);
+    const res = await fetch('/api/payments/verify-slip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + window._payIdToken },
+      body: JSON.stringify({ imageBase64 })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      ok.textContent = '✅ ' + (data.message || 'ชำระเงินสำเร็จ เปิดใช้งานแล้ว');
+      ok.style.display = 'block';
+      setTimeout(() => location.reload(), 1600);
+    } else {
+      err.textContent = '❌ ' + (data.error || 'ตรวจสอบสลิปไม่สำเร็จ กรุณาลองใหม่');
+      err.style.display = 'block';
+    }
+  } catch (e) {
+    err.textContent = '❌ เกิดข้อผิดพลาดในการส่งสลิป กรุณาลองใหม่';
+    err.style.display = 'block';
+  } finally { btn.disabled = false; btn.textContent = orig; }
+}
+
+async function paymentLogout() {
+  if (auth) { try { await auth.signOut(); } catch (e) { } }
+  window._payIdToken = null;
+  const ps = document.getElementById('paymentScreen'); if (ps) ps.style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
 }
 
 // ===== AUTH =====
@@ -888,7 +985,7 @@ async function doLogin() {
       approvalStatus: user.approvalStatus
     });
 
-    await applyLoginSession(user, idToken, errMsg);
+    await postAuth(user, idToken, errMsg);
   } catch (e) {
     console.error('[LOGIN_ERROR]', e);
     let msg = '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือระบบขัดข้อง';
@@ -993,6 +1090,9 @@ async function doRegister() {
     // (3) ส่งอีเมลยืนยันตัวตน
     let verifySent = false;
     try { await userCredential.user.sendEmailVerification(); verifySent = true; } catch (verErr) { console.warn('sendEmailVerification failed', verErr); }
+
+    // ถ้าเปิดระบบสมาชิกแบบจ่ายเงิน → ไปหน้าชำระเงินทันที (ยังคง sign-in ไว้)
+    if (await needPaymentThenShow(idToken, 'user')) return;
 
     successMsg.innerHTML = 'สมัครสมาชิกสำเร็จ ✅<br>' +
       (verifySent ? 'เราได้ส่งลิงก์ยืนยันไปที่อีเมลของคุณแล้ว กรุณายืนยันอีเมล<br>' : '') +

@@ -46,27 +46,39 @@ async function grantPaidAccess(uid, transRef) {
   return { expiresAt };
 }
 
-// Call the slip-verification provider (SlipOK). `slipRef` is the QR data read
-// from the transfer slip (or a ref string) submitted by the client.
-async function verifySlipWithProvider(slipRef) {
+// Call the slip-verification provider (SlipOK). Accepts either a slip image
+// (base64) sent as multipart `files`, or a QR data string sent as `data`.
+async function verifySlipWithProvider({ imageBase64, dataRef }) {
   const c = CONFIG();
   const url = `${c.slipOkUrl}/${c.slipOkBranchId}`;
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-authorization': c.slipOkApiKey },
-    body: JSON.stringify({ data: slipRef, log: true }),
-  });
+  const headers = { 'x-authorization': c.slipOkApiKey };
+  let body;
+  if (imageBase64) {
+    const b64 = String(imageBase64).replace(/^data:image\/\w+;base64,/, '');
+    const buf = Buffer.from(b64, 'base64');
+    const form = new FormData();
+    form.append('files', new Blob([buf], { type: 'image/jpeg' }), 'slip.jpg');
+    form.append('log', 'true');
+    form.append('amount', String(c.amount));
+    body = form; // fetch sets the multipart boundary automatically
+  } else {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify({ data: dataRef, log: true, amount: c.amount });
+  }
+  const resp = await fetch(url, { method: 'POST', headers, body });
   return resp.json().catch(() => ({}));
 }
 
-async function processSlip(uid, slipRef) {
+async function processSlip(uid, input) {
   const c = CONFIG();
   if (!c.enabled) return { ok: false, code: 'disabled' };
   if (!c.promptPayId || !c.slipOkApiKey || !c.slipOkBranchId) return { ok: false, code: 'not_configured' };
-  if (!slipRef || typeof slipRef !== 'string') return { ok: false, code: 'invalid_slip' };
+  const hasImage = input && typeof input.imageBase64 === 'string' && input.imageBase64.length > 0;
+  const hasData = input && typeof input.dataRef === 'string' && input.dataRef.length > 0;
+  if (!hasImage && !hasData) return { ok: false, code: 'invalid_slip' };
 
   let result;
-  try { result = await verifySlipWithProvider(slipRef); }
+  try { result = await verifySlipWithProvider(input); }
   catch (e) { return { ok: false, code: 'provider_error', message: e.message }; }
 
   // NOTE: adjust these field paths to SlipOK's exact response shape.

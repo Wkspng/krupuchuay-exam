@@ -1,3 +1,4 @@
+const QRCode = require('qrcode');
 const paymentService = require('../services/paymentService');
 const { db } = require('../src/firebaseAdmin');
 
@@ -11,7 +12,12 @@ function isPaidActive(u) {
 async function getConfig(req, res) {
   const info = paymentService.getPaymentInfo();
   if (!info.enabled) return res.json({ enabled: false });
-  return res.json(info);
+  let qrDataUrl = null;
+  if (info.qrPayload) {
+    try { qrDataUrl = await QRCode.toDataURL(info.qrPayload, { width: 320, margin: 1 }); }
+    catch (e) { console.warn('QR generation failed:', e.message); }
+  }
+  return res.json({ ...info, qrDataUrl });
 }
 
 async function getStatus(req, res) {
@@ -29,10 +35,10 @@ async function getStatus(req, res) {
 }
 
 async function verifySlip(req, res) {
-  const { slipRef } = req.body || {};
+  const { imageBase64, slipRef } = req.body || {};
   let result;
   try {
-    result = await paymentService.processSlip(req.user.uid, slipRef);
+    result = await paymentService.processSlip(req.user.uid, { imageBase64, dataRef: slipRef });
   } catch (error) {
     console.error('verifySlip error:', error);
     return res.status(500).json({ success: false, error: 'ระบบตรวจสอบสลิปขัดข้อง กรุณาลองใหม่' });
