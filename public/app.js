@@ -563,8 +563,9 @@ async function initializeAppAuth() {
               document.getElementById('examSetAdminTab').style.display = '';
               renderPendingUsers();
             }
-            
+
             checkApprovalStatus();
+            updateEmailVerifyBanner(user.role);
             await buildHome();
             if (document.getElementById('page-home').classList.contains('active')) {
               showPage('home');
@@ -695,6 +696,70 @@ function isValidEmailFormat(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
 }
 
+// Map Firebase Auth error codes to friendly Thai messages.
+function mapAuthError(e) {
+  const code = e && e.code;
+  const m = {
+    'auth/email-already-in-use': 'อีเมลนี้ถูกใช้สมัครไปแล้ว กรุณาเข้าสู่ระบบ หรือใช้อีเมลอื่น',
+    'auth/invalid-email': 'รูปแบบอีเมลไม่ถูกต้อง เช่น example@gmail.com',
+    'auth/weak-password': 'รหัสผ่านไม่ปลอดภัยพอ ต้องมีอย่างน้อย 6 ตัวอักษร',
+    'auth/network-request-failed': 'เชื่อมต่ออินเทอร์เน็ตไม่ได้ กรุณาลองใหม่',
+    'auth/too-many-requests': 'มีการพยายามหลายครั้งเกินไป กรุณาลองใหม่ภายหลัง',
+    'auth/user-not-found': 'ไม่พบบัญชีที่ใช้อีเมลนี้',
+    'auth/missing-email': 'กรุณากรอกอีเมล',
+  };
+  return m[code] || (e && e.message) || 'เกิดข้อผิดพลาด กรุณาลองใหม่';
+}
+
+// (1) ลืมรหัสผ่าน — ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมล
+async function doForgotPassword() {
+  const errMsg = document.getElementById('errMsg');
+  const info = document.getElementById('loginInfoMsg');
+  errMsg.style.display = 'none'; info.style.display = 'none';
+  const email = document.getElementById('inputUser').value.trim();
+  if (!email || !isValidEmailFormat(email)) {
+    errMsg.textContent = '❌ กรุณากรอกอีเมลที่สมัครไว้ในช่องด้านบนก่อน แล้วกด "ลืมรหัสผ่าน?" อีกครั้ง';
+    errMsg.style.display = 'block';
+    return;
+  }
+  if (!auth) { errMsg.textContent = '❌ ระบบยังไม่พร้อมใช้งาน'; errMsg.style.display = 'block'; return; }
+  try {
+    await auth.sendPasswordResetEmail(email);
+    info.textContent = '✅ ส่งลิงก์รีเซ็ตรหัสผ่านไปที่ ' + email + ' แล้ว กรุณาตรวจกล่องอีเมล (รวมถึงโฟลเดอร์สแปม)';
+    info.style.display = 'block';
+  } catch (e) {
+    // ไม่เปิดเผยว่าอีเมลมีอยู่จริงหรือไม่ (privacy) เว้นแต่ error รูปแบบ/เครือข่าย
+    if (e.code === 'auth/invalid-email' || e.code === 'auth/network-request-failed' || e.code === 'auth/too-many-requests') {
+      errMsg.textContent = '❌ ' + mapAuthError(e); errMsg.style.display = 'block';
+    } else {
+      info.textContent = '✅ หากมีบัญชีที่ใช้อีเมลนี้ ระบบได้ส่งลิงก์รีเซ็ตรหัสผ่านไปแล้ว กรุณาตรวจกล่องอีเมล';
+      info.style.display = 'block';
+    }
+  }
+}
+
+// (3) ส่งอีเมลยืนยันอีกครั้ง + อัปเดตแบนเนอร์เตือน
+async function resendVerifyEmail() {
+  const msg = document.getElementById('verifyBannerMsg');
+  try {
+    if (auth && auth.currentUser) {
+      await auth.currentUser.sendEmailVerification();
+      if (msg) msg.textContent = '✅ ส่งแล้ว โปรดตรวจอีเมล';
+    }
+  } catch (e) {
+    if (msg) msg.textContent = e.code === 'auth/too-many-requests' ? '⚠️ ส่งถี่เกินไป ลองใหม่ภายหลัง' : '⚠️ ส่งไม่สำเร็จ';
+  }
+}
+
+// แสดง/ซ่อนแบนเนอร์เตือนยืนยันอีเมล (ยกเว้นแอดมิน)
+function updateEmailVerifyBanner(role) {
+  const banner = document.getElementById('emailVerifyBanner');
+  if (!banner) return;
+  const fbUser = auth && auth.currentUser;
+  const needVerify = fbUser && fbUser.emailVerified === false && role !== 'admin';
+  banner.style.display = needVerify ? 'block' : 'none';
+}
+
 // ===== AUTH =====
 async function doLogin() {
   const email = document.getElementById('inputUser').value.trim();
@@ -789,6 +854,7 @@ async function doLogin() {
     }
     
     checkApprovalStatus();
+    updateEmailVerifyBanner(user.role);
     await buildHome();
     showPage('home');
   } catch (e) {
@@ -877,13 +943,13 @@ async function doRegister() {
     const userCredential = await auth.createUserWithEmailAndPassword(email, password);
     await userCredential.user.updateProfile({ displayName: name });
     const idToken = await userCredential.user.getIdToken();
-    
+
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, idToken })
     });
-    
+
     const data = await res.json();
     if (!res.ok) {
       errMsg.textContent = data.error || 'เกิดข้อผิดพลาด กรุณาลองใหม่';
@@ -891,14 +957,20 @@ async function doRegister() {
       try { await userCredential.user.delete(); } catch (delErr) {}
       return;
     }
-    
-    successMsg.textContent = 'สมัครสมาชิกสำเร็จ กรุณารอแอดมินอนุมัติบัญชีก่อนเข้าใช้งาน';
+
+    // (3) ส่งอีเมลยืนยันตัวตน
+    let verifySent = false;
+    try { await userCredential.user.sendEmailVerification(); verifySent = true; } catch (verErr) { console.warn('sendEmailVerification failed', verErr); }
+
+    successMsg.innerHTML = 'สมัครสมาชิกสำเร็จ ✅<br>' +
+      (verifySent ? 'เราได้ส่งลิงก์ยืนยันไปที่อีเมลของคุณแล้ว กรุณายืนยันอีเมล<br>' : '') +
+      'จากนั้นกรุณารอแอดมินอนุมัติบัญชีก่อนเข้าใช้งาน';
     successMsg.style.display = 'block';
     await auth.signOut();
-    setTimeout(backToLogin, 2000);
+    setTimeout(backToLogin, 3500);
   } catch (e) {
     console.error(e);
-    errMsg.textContent = e.message || 'เกิดข้อผิดพลาดในการสมัครสมาชิก';
+    errMsg.textContent = mapAuthError(e);
     errMsg.style.display = 'block';
   }
 }
@@ -913,6 +985,7 @@ async function doLogout() {
   }
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('appScreen').style.display = 'none';
+  const evb = document.getElementById('emailVerifyBanner'); if (evb) evb.style.display = 'none';
   document.getElementById('examSetsTab').style.display = 'none';
   document.getElementById('realExamTab').style.display = 'none';
   document.getElementById('adminTab').style.display = 'none';

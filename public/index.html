@@ -40,7 +40,9 @@
     </div>
     <button class="btn-login" onclick="doLogin()">เข้าสู่ระบบ</button>
     <button class="btn-register-link" onclick="showRegisterScreen()">สมัครสมาชิก</button>
+    <button class="btn-register-link" onclick="doForgotPassword()" style="opacity:.85;">🔑 ลืมรหัสผ่าน?</button>
     <p class="error-msg" id="errMsg"></p>
+    <p class="success-msg" id="loginInfoMsg" style="display:none;"></p>
   </div>
 </div>
 
@@ -81,6 +83,11 @@
       <span class="user-badge" id="userBadge">👤 —</span>
       <button class="btn-logout" onclick="doLogout()">ออกจากระบบ</button>
     </div>
+  </div>
+  <div id="emailVerifyBanner" style="display:none; background:rgba(240,192,64,.15); border-bottom:1px solid rgba(240,192,64,.4); color:#f0c040; padding:8px 16px; font-size:13px; text-align:center;">
+    ⚠️ อีเมลของคุณยังไม่ได้ยืนยัน กรุณาตรวจกล่องอีเมลแล้วคลิกลิงก์ยืนยัน
+    <button onclick="resendVerifyEmail()" style="margin-left:8px; background:#f0c040; color:#1a2740; border:none; border-radius:6px; padding:3px 10px; cursor:pointer; font-size:12px; font-weight:bold;">ส่งอีเมลยืนยันอีกครั้ง</button>
+    <span id="verifyBannerMsg" style="margin-left:8px;"></span>
   </div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('home')">🏠 หน้าหลัก</button>
