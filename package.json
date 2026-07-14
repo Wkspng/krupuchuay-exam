@@ -27,6 +27,7 @@
     "seed:reasoning": "node scripts/seedReasoningGaps.js",
     "gen:figures": "node scripts/genFigureSeries.js",
     "gen:figures2": "node scripts/genFigureSeries2.js",
+    "gen:figures3": "node scripts/genFigureSeries3.js",
     "counts:refresh": "node scripts/computePracticeCounts.js"
   },
   "dependencies": {
