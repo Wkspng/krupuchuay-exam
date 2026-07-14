@@ -93,6 +93,24 @@ async function optionalAuthenticateToken(req, res, next) {
   }
 }
 
+/**
+ * Requires a valid Firebase token but does NOT block on approval/payment status.
+ * Used by the payment flow so a signed-in but not-yet-paid user can pay.
+ */
+async function authenticateSignedIn(req, res, next) {
+  const authorization = req.headers.authorization || '';
+  const [scheme, token] = authorization.split(' ');
+  if (scheme !== 'Bearer' || !token) {
+    return res.status(401).json({ error: 'Authentication token is required' });
+  }
+  try {
+    req.user = await verifyFirebaseToken(token);
+    return next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid or expired authentication token' });
+  }
+}
+
 function requireAdmin(req, res, next) {
   if (req.user?.role !== 'admin') {
     return res.status(403).json({ error: 'Administrator access is required' });
@@ -100,4 +118,4 @@ function requireAdmin(req, res, next) {
   return next();
 }
 
-module.exports = { authenticateToken, optionalAuthenticateToken, requireAdmin };
+module.exports = { authenticateToken, optionalAuthenticateToken, authenticateSignedIn, requireAdmin };

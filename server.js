@@ -16,6 +16,7 @@ const userRoutes = require('./routes/userRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const statsRoutes = require('./routes/statsRoutes');
 const practiceRoutes = require('./routes/practiceRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 const { authenticateToken, optionalAuthenticateToken } = require('./middleware/auth');
 const { globalLimiter } = require('./middleware/rateLimiter');
 const { verifyAppCheck } = require('./middleware/appCheck');
@@ -79,6 +80,7 @@ function createApp() {
   app.use('/api/exam-sets', examSetRoutes);
   app.use('/api/stats', statsRoutes);
   app.use('/api/practice', practiceRoutes);
+  app.use('/api/payments', paymentRoutes);
   app.use('/api/auth', authRateLimiter, authRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/admin', adminRoutes);
