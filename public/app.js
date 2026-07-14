@@ -2316,7 +2316,7 @@ async function renderAdmin(resetPage = false) {
         actions.push('<span style="font-size:12px;color:var(--muted)">บัญชีผู้ดูแลระบบ</span>');
       }
       const accountLabel = u.email || `ไม่มีอีเมล · username: ${u.username}`;
-      return `<div class="user-item"><div class="user-info"><div class="uname">${u.role==='admin'?'👑':'👤'} ${u.name} ${statusBadge}${legacyBadge}</div><div class="urole">${accountLabel} · ${u.role} · สมัครเมื่อ ${createdAt}</div></div><div class="pending-actions">${actions.join('')}</div></div>`;
+      return `<div class="user-item"><div class="user-info"><div class="uname">${u.role==='admin'?'👑':'👤'} ${u.name} ${statusBadge}${legacyBadge}${verifyBadgeHtml(u)}</div><div class="urole">${accountLabel} · ${u.role} · สมัครเมื่อ ${createdAt}</div></div><div class="pending-actions">${actions.join('')}</div></div>`;
     }).join('');
   } catch (e) {}
 }
@@ -2336,6 +2336,12 @@ function changeAdminUsersPage(offset) {
   }
 }
 
+function verifyBadgeHtml(u) {
+  if (u.emailVerified === true) return ' <span class="status-badge" style="background:rgba(46,204,113,.18);color:#2ecc71">✅ ยืนยันอีเมลแล้ว</span>';
+  if (u.emailVerified === false) return ' <span class="status-badge" style="background:rgba(240,192,64,.18);color:#f0c040">⚠️ ยังไม่ยืนยันอีเมล</span>';
+  return '';
+}
+
 async function renderPendingUsers() {
   try {
     const res = await apiFetch('/api/users/pending');
@@ -2349,7 +2355,7 @@ async function renderPendingUsers() {
     list.innerHTML = pending.map(u => {
       const date = u.createdAt ? new Date(u.createdAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
       const legacyBadge = u.isLegacy ? '<span class="status-badge legacy-badge">บัญชีเก่า/Legacy</span>' : '';
-      return `<div class="pending-item"><div class="user-info"><div class="uname">👤 ${u.name} <span style="color:var(--muted);font-weight:400;font-size:13px">(${u.email || u.username})</span>${legacyBadge}</div><div class="urole">สมัครเมื่อ ${date}</div></div><div class="pending-actions"><button class="btn btn-success btn-sm" onclick="approveUser('${u.id}','${u.name.replace(/'/g,'')}')">✅ อนุมัติ</button><button class="btn btn-danger btn-sm" onclick="rejectUser('${u.id}','${u.name.replace(/'/g,'')}')">❌ ปฏิเสธ</button></div></div>`;
+      return `<div class="pending-item"><div class="user-info"><div class="uname">👤 ${u.name} <span style="color:var(--muted);font-weight:400;font-size:13px">(${u.email || u.username})</span>${legacyBadge}${verifyBadgeHtml(u)}</div><div class="urole">สมัครเมื่อ ${date}</div></div><div class="pending-actions"><button class="btn btn-success btn-sm" onclick="approveUser('${u.id}','${u.name.replace(/'/g,'')}')">✅ อนุมัติ</button><button class="btn btn-danger btn-sm" onclick="rejectUser('${u.id}','${u.name.replace(/'/g,'')}')">❌ ปฏิเสธ</button></div></div>`;
     }).join('');
   } catch (e) {}
 }

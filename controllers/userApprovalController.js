@@ -31,6 +31,23 @@ function validApprovalStatus(value) {
   return ['approved', 'pending', 'rejected'].includes(value);
 }
 
+// Enrich a list of Firestore user profiles with emailVerified from Firebase Auth
+// (batched — firebaseAuth.getUsers accepts up to 100 identifiers per call).
+async function withEmailVerified(profiles) {
+  const uids = profiles.map(p => p.uid).filter(Boolean);
+  const verifiedMap = {};
+  try {
+    for (let i = 0; i < uids.length; i += 100) {
+      const chunk = uids.slice(i, i + 100).map(uid => ({ uid }));
+      const result = await firebaseAuth.getUsers(chunk);
+      result.users.forEach(u => { verifiedMap[u.uid] = u.emailVerified === true; });
+    }
+  } catch (error) {
+    console.warn('withEmailVerified failed:', error.message);
+  }
+  return profiles.map(p => ({ ...publicUser(p), emailVerified: p.uid in verifiedMap ? verifiedMap[p.uid] : null }));
+}
+
 async function getUsers(req, res) {
   try {
     const { limit, startAfter, role, approvalStatus, status } = req.query;
@@ -78,7 +95,7 @@ async function getUsers(req, res) {
     const nextCursor = hasNextPage && paginatedUsers.length > 0 ? paginatedUsers[paginatedUsers.length - 1].id : null;
 
     return res.json({
-      users: paginatedUsers.map(publicUser),
+      users: await withEmailVerified(paginatedUsers),
       nextCursor,
       hasNextPage,
       pageSize: limitNum
@@ -100,7 +117,7 @@ async function getPendingUsers(req, res) {
     snapshot.forEach(doc => {
       users.push({ id: doc.id, ...doc.data() });
     });
-    return res.json(users.map(publicUser));
+    return res.json(await withEmailVerified(users));
   } catch (error) {
     console.error('getPendingUsers error:', error);
     return res.status(500).json({ error: 'Unable to load pending users' });
