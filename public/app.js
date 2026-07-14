@@ -707,6 +707,9 @@ function mapAuthError(e) {
     'auth/too-many-requests': 'มีการพยายามหลายครั้งเกินไป กรุณาลองใหม่ภายหลัง',
     'auth/user-not-found': 'ไม่พบบัญชีที่ใช้อีเมลนี้',
     'auth/missing-email': 'กรุณากรอกอีเมล',
+    'auth/operation-not-allowed': 'ยังไม่ได้เปิดใช้วิธีเข้าสู่ระบบนี้ (แอดมินต้องเปิดใน Firebase Console)',
+    'auth/unauthorized-domain': 'โดเมนนี้ยังไม่ได้รับอนุญาตให้เข้าสู่ระบบ',
+    'auth/popup-blocked': 'เบราว์เซอร์บล็อกป๊อปอัป กรุณาอนุญาตป๊อปอัปแล้วลองใหม่',
   };
   return m[code] || (e && e.message) || 'เกิดข้อผิดพลาด กรุณาลองใหม่';
 }
@@ -758,6 +761,74 @@ function updateEmailVerifyBanner(role) {
   const fbUser = auth && auth.currentUser;
   const needVerify = fbUser && fbUser.emailVerified === false && role !== 'admin';
   banner.style.display = needVerify ? 'block' : 'none';
+}
+
+// Shared post-login gate + UI setup (used by email login and Google sign-in)
+async function applyLoginSession(user, idToken, errMsg) {
+  if (user.approvalStatus === 'pending') {
+    errMsg.textContent = '❌ บัญชียังไม่ได้รับการอนุมัติ กรุณารอการอนุมัติ';
+    errMsg.style.display = 'block'; await auth.signOut(); return false;
+  }
+  if (user.approvalStatus === 'rejected') {
+    errMsg.textContent = '❌ บัญชีนี้ไม่มีสิทธิ์เข้าใช้งาน';
+    errMsg.style.display = 'block'; await auth.signOut(); return false;
+  }
+  if (!['admin', 'user'].includes(user.role)) {
+    errMsg.textContent = '❌ บัญชีนี้ไม่มีสิทธิ์เข้าใช้งาน';
+    errMsg.style.display = 'block'; await auth.signOut(); return false;
+  }
+  localStorage.setItem('authToken', idToken);
+  localStorage.setItem('authUser', JSON.stringify(user));
+  currentUser = user;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+  document.getElementById('userBadge').textContent = '👤 ' + user.name;
+  document.getElementById('examSetsTab').style.display = '';
+  document.getElementById('realExamTab').style.display = '';
+  if (user.role === 'admin') {
+    document.getElementById('adminTab').style.display = '';
+    document.getElementById('questionBankTab').style.display = '';
+    document.getElementById('examSetAdminTab').style.display = '';
+    renderPendingUsers();
+  }
+  checkApprovalStatus();
+  updateEmailVerifyBanner(user.role);
+  await buildHome();
+  showPage('home');
+  return true;
+}
+
+// เข้าสู่ระบบ/สมัครด้วยบัญชี Google
+async function doGoogleSignIn() {
+  const errMsg = document.getElementById('errMsg');
+  errMsg.style.display = 'none';
+  const info = document.getElementById('loginInfoMsg'); if (info) info.style.display = 'none';
+  if (!auth) { errMsg.textContent = '❌ ระบบยังไม่พร้อมใช้งาน'; errMsg.style.display = 'block'; return; }
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    const result = await auth.signInWithPopup(provider);
+    const idToken = await result.user.getIdToken();
+    const res = await fetch('/api/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken })
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      errMsg.textContent = d.error || '❌ เข้าสู่ระบบด้วย Google ไม่สำเร็จ';
+      errMsg.style.display = 'block'; await auth.signOut(); return;
+    }
+    const { user } = await res.json();
+    await applyLoginSession(user, idToken, errMsg);
+  } catch (e) {
+    if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+    console.error('[GOOGLE_SIGNIN_ERROR]', e);
+    if (e.code === 'auth/account-exists-with-different-credential') {
+      errMsg.textContent = '❌ อีเมลนี้เคยสมัครด้วยรหัสผ่านไว้แล้ว กรุณาเข้าสู่ระบบด้วยอีเมล/รหัสผ่าน';
+    } else {
+      errMsg.textContent = '❌ ' + mapAuthError(e);
+    }
+    errMsg.style.display = 'block';
+  }
 }
 
 // ===== AUTH =====
@@ -817,46 +888,7 @@ async function doLogin() {
       approvalStatus: user.approvalStatus
     });
 
-    if (user.approvalStatus === 'pending') {
-      errMsg.textContent = '❌ บัญชียังไม่ได้รับการอนุมัติ';
-      errMsg.style.display = 'block';
-      await auth.signOut();
-      return;
-    }
-    if (user.approvalStatus === 'rejected') {
-      errMsg.textContent = '❌ บัญชีนี้ไม่มีสิทธิ์เข้าใช้งาน';
-      errMsg.style.display = 'block';
-      await auth.signOut();
-      return;
-    }
-    if (!['admin', 'user'].includes(user.role)) {
-      errMsg.textContent = '❌ บัญชีนี้ไม่มีสิทธิ์เข้าใช้งาน';
-      errMsg.style.display = 'block';
-      await auth.signOut();
-      return;
-    }
-
-    localStorage.setItem('authToken', idToken);
-    localStorage.setItem('authUser', JSON.stringify(user));
-    currentUser = user;
-    
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('appScreen').style.display = 'block';
-    document.getElementById('userBadge').textContent = '👤 ' + user.name;
-    document.getElementById('examSetsTab').style.display = '';
-    document.getElementById('realExamTab').style.display = '';
-    
-    if (user.role === 'admin') {
-      document.getElementById('adminTab').style.display = '';
-      document.getElementById('questionBankTab').style.display = '';
-      document.getElementById('examSetAdminTab').style.display = '';
-      renderPendingUsers();
-    }
-    
-    checkApprovalStatus();
-    updateEmailVerifyBanner(user.role);
-    await buildHome();
-    showPage('home');
+    await applyLoginSession(user, idToken, errMsg);
   } catch (e) {
     console.error('[LOGIN_ERROR]', e);
     let msg = '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือระบบขัดข้อง';
