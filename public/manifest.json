@@ -1,0 +1,17 @@
+{
+  "name": "Moonlight Exam — ข้อสอบครูผู้ช่วย ภาค ก.",
+  "short_name": "Moonlight Exam",
+  "description": "ระบบทดสอบข้อสอบครูผู้ช่วย ภาค ก. ฝึกทำข้อสอบพร้อมเฉลยละเอียด",
+  "lang": "th",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e1a2b",
+  "theme_color": "#0e1a2b",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
